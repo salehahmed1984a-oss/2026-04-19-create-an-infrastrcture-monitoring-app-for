@@ -431,6 +431,11 @@ button {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.analysis-card.config {
+  background: rgba(44, 167, 255, 0.08);
+  border-color: rgba(116, 216, 255, 0.24);
+}
+
 .device-list {
   display: grid;
   gap: 10px;

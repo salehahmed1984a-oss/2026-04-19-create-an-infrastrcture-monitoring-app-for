@@ -282,6 +282,16 @@ function renderRecommendationCards(recommendations) {
     .join("");
 }
 
+function renderConfigCards(items) {
+  if (!items.length) {
+    return `<div class="empty-callout">No immediate configuration changes are suggested from this snapshot.</div>`;
+  }
+
+  return items
+    .map((item) => `<article class="analysis-card config">${escapeHtml(item)}</article>`)
+    .join("");
+}
+
 function renderDeviceRows(devices) {
   if (!devices.length) {
     return `<div class="empty-callout">No devices returned in this category.</div>`;
@@ -361,6 +371,11 @@ function renderSelectedSite() {
         <div class="metric-list">${topDevicesMarkup}</div>
       </section>
     </div>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Optimization</p>
+      <h4>Recommended Configuration Changes</h4>
+      <div class="analysis-grid">${renderConfigCards(selected.configChanges || [])}</div>
+    </section>
     <div class="detail-grid secondary">
       <section class="detail-section">
         <p class="eyebrow">Wireless</p>
@@ -425,6 +440,7 @@ async function renderSelectedDevice() {
   const recommendationsMarkup = device.insights.recommendations.length
     ? device.insights.recommendations.map((item) => `<div class="analysis-card">${escapeHtml(item)}</div>`).join("")
     : `<div class="empty-callout">No recommendations right now.</div>`;
+  const configChangesMarkup = renderConfigCards(device.insights.configChanges || []);
 
   const firmwareMarkup = `
     <div class="metric-row"><span>Current Version</span><strong>${escapeHtml(device.insights.firmware.currentVersion || "unknown")}</strong></div>
@@ -493,19 +509,26 @@ async function renderSelectedDevice() {
         ${device.type === "switch" ? `<div class="metric-list top-space">${busiestPortsMarkup}</div>` : ""}
       </section>
       <section class="detail-section">
+        <p class="eyebrow">Optimization</p>
+        <h4>Recommended Configuration Changes</h4>
+        <div class="analysis-grid">${configChangesMarkup}</div>
+      </section>
+    </div>
+    <div class="detail-grid secondary">
+      <section class="detail-section">
         <p class="eyebrow">History</p>
         <h4>Recent Device Trend</h4>
         ${renderHistorySummaryChart(history)}
       </section>
+      <section class="detail-section">
+        <p class="eyebrow">Diagnostics</p>
+        <h4>Raw Device Payload</h4>
+        <details>
+          <summary>Open raw JSON</summary>
+          <pre class="raw-json">${escapeHtml(JSON.stringify(device.raw, null, 2))}</pre>
+        </details>
+      </section>
     </div>
-    <section class="detail-section top-space">
-      <p class="eyebrow">Diagnostics</p>
-      <h4>Raw Device Payload</h4>
-      <details>
-        <summary>Open raw JSON</summary>
-        <pre class="raw-json">${escapeHtml(JSON.stringify(device.raw, null, 2))}</pre>
-      </details>
-    </section>
   `;
 }
 

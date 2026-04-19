@@ -394,6 +394,7 @@ function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = 
   const firmware = deriveFirmwareAssessment(device, modelVersionIndex);
   const recommendations = [];
   const observations = [];
+  const configChanges = [];
 
   if (device.status && !String(device.status).toLowerCase().includes("connected") && !String(device.status).toLowerCase().includes("online")) {
     recommendations.push(`${device.name} is not connected right now.`);
@@ -406,6 +407,7 @@ function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = 
   if (device.type === "ap") {
     if (device.clients >= 25) {
       recommendations.push(`${device.name} is carrying a high client load (${device.clients}).`);
+      configChanges.push("Review client distribution and consider reducing transmit power or adding nearby AP capacity if clients are sticking to this AP.");
     }
     if (device.txPower5 !== null || device.txPower24 !== null) {
       observations.push(`Current radio power: 2.4 GHz ${device.txPower24 ?? "n/a"} dBm, 5 GHz ${device.txPower5 ?? "n/a"} dBm.`);
@@ -413,33 +415,51 @@ function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = 
     if (device.meshRole) {
       observations.push(`Mesh role: ${device.meshRole}.`);
     }
+    if (device.txPower24 !== null && device.txPower24 >= 18) {
+      configChanges.push("2.4 GHz power is relatively high. If roaming is sticky or channel contention is high, consider lowering 2.4 GHz transmit power and favoring 5 GHz coverage.");
+    }
+    if (device.tx5Disabled) {
+      configChanges.push("5 GHz radio is disabled. Re-enable it if this AP should serve normal client traffic rather than a special-purpose coverage role.");
+    }
     if (previousDevice && (previousDevice.txPower24 !== device.txPower24 || previousDevice.txPower5 !== device.txPower5)) {
       recommendations.push(`${device.name} had a radio power change since the previous snapshot.`);
+      configChanges.push("Radio power changed since the previous snapshot. Review whether this was expected from RRM or a recent manual configuration change.");
     }
   }
 
   if (device.type === "switch") {
     if (device.power?.power_draw !== undefined) {
       observations.push(`PoE draw ${device.power.power_draw}W of ${device.power.max_power}W available, ${device.power.power_reserved}W reserved.`);
+      if (device.power.max_power && device.power.power_reserved / device.power.max_power > 0.8) {
+        configChanges.push("PoE reservation is high relative to available budget. Review connected powered devices and consider PoE budgeting adjustments.");
+      }
     }
     if (device.maxTemperature !== null) {
       observations.push(`Highest reported switch temperature is ${device.maxTemperature}°C.`);
+      if (device.maxTemperature >= 60) {
+        configChanges.push("Switch temperature is elevated. Review airflow, rack ventilation, and power density around this switch.");
+      }
     }
     if (device.portSummary?.downPorts > 0) {
       observations.push(`${device.portSummary.upPorts}/${device.portSummary.totalPorts} data ports are up.`);
+      if (device.portSummary.downPorts >= Math.max(4, Math.round(device.portSummary.totalPorts * 0.5))) {
+        configChanges.push("Many switch ports are down. Review whether unused edge ports should be disabled or documented as spare capacity.");
+      }
     }
     if (device.nonOkSensors > 0) {
       recommendations.push(`${device.name} has ${device.nonOkSensors} environmental sensors reporting a non-ok state.`);
     }
     if (device.pendingVersion) {
       recommendations.push(`${device.name} has a pending firmware version (${device.pendingVersion}).`);
+      configChanges.push("A pending switch firmware version exists. Review the maintenance window and staged upgrade plan for this switch.");
     }
     if (device.fwVersionsOutOfSync) {
       recommendations.push(`${device.name} reports firmware versions out of sync.`);
+      configChanges.push("Firmware is out of sync across switch components. Review upgrade consistency before applying further configuration changes.");
     }
   }
 
-  return { firmware, observations, recommendations };
+  return { firmware, observations, recommendations, configChanges };
 }
 
 function summarizeTopDevices(devices) {
@@ -698,6 +718,7 @@ async function fetchDashboard(orgId) {
       const alarmCounts = toArray(alarmCountsResult.data);
       const allDevices = [...accessPoints, ...switches];
       const recommendations = allDevices.flatMap((device) => device.insights.recommendations).slice(0, 8);
+      const configChanges = allDevices.flatMap((device) => device.insights.configChanges || []).slice(0, 8);
 
       return {
         site: computeSiteHealth(site, accessPoints, switches, alarmCounts),
@@ -705,6 +726,7 @@ async function fetchDashboard(orgId) {
         switches,
         topDevices: summarizeTopDevices(allDevices),
         recommendations,
+        configChanges,
         errors: {
           siteDevices: siteDevicesResult.ok ? null : siteDevicesResult.error,
           apStats: apStatsResult.ok ? null : apStatsResult.error,
