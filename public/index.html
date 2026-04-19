@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HPE Mist Infrastructure Monitor</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">HM</div>
+          <div>
+            <p class="eyebrow">HPE Mist</p>
+            <h1>Infrastructure Monitor</h1>
+          </div>
+        </div>
+
+        <form id="config-form" class="config-card">
+          <label for="org-id">Organization ID</label>
+          <div class="field-row">
+            <input id="org-id" name="orgId" type="text" placeholder="Paste your Mist org UUID" />
+            <button type="submit">Load</button>
+          </div>
+          <p id="config-hint" class="muted">Reads from the local proxy using your configured API token.</p>
+        </form>
+
+        <section class="legend-card">
+          <div class="section-head">
+            <h2>Refresh</h2>
+            <span id="refresh-status" class="mini-pill">Manual</span>
+          </div>
+          <label for="refresh-interval" class="small-label">Auto refresh every</label>
+          <select id="refresh-interval">
+            <option value="0">Off</option>
+            <option value="30000">30 seconds</option>
+            <option value="60000" selected>1 minute</option>
+            <option value="300000">5 minutes</option>
+          </select>
+          <p class="muted">Use shorter intervals carefully to stay within Mist API rate limits.</p>
+        </section>
+
+        <section class="legend-card">
+          <h2>Status Bands</h2>
+          <ul class="legend-list">
+            <li><span class="swatch healthy"></span> Healthy</li>
+            <li><span class="swatch degraded"></span> Degraded</li>
+            <li><span class="swatch critical"></span> Critical</li>
+          </ul>
+        </section>
+
+        <section class="legend-card">
+          <h2>Operational Notes</h2>
+          <p class="muted">
+            Site scoring uses device status, warning and critical alarms, plus high CPU and memory pressure to surface
+            the places that need attention first.
+          </p>
+        </section>
+      </aside>
+
+      <main class="content">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Network Operations</p>
+            <h2>Live visibility across your Mist-managed sites</h2>
+            <p class="hero-copy">
+              Track device availability, client load, trend movement, and alarm pressure across your organization
+              without exposing your Mist token to the browser.
+            </p>
+          </div>
+          <div class="hero-badge">
+            <span id="generated-at">Waiting for data</span>
+          </div>
+        </header>
+
+        <section id="message" class="message hidden"></section>
+
+        <section class="stats-grid" id="summary-grid">
+          <article class="stat-card">
+            <span class="stat-label">Health Score</span>
+            <strong id="summary-health">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Sites</span>
+            <strong id="summary-sites">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Devices</span>
+            <strong id="summary-devices">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Offline</span>
+            <strong id="summary-offline">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Clients</span>
+            <strong id="summary-clients">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Risk Flags</span>
+            <strong id="summary-risk">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Warnings</span>
+            <strong id="summary-warnings">-</strong>
+          </article>
+          <article class="stat-card accent">
+            <span class="stat-label">Critical</span>
+            <strong id="summary-critical">-</strong>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Trend View</p>
+              <h3>Organization History</h3>
+            </div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-header">
+                <strong>Health Score</strong>
+                <span class="muted" id="history-points">No history yet</span>
+              </div>
+              <svg id="health-chart" class="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <strong>Offline Devices</strong>
+                <span class="muted">Recent snapshots</span>
+              </div>
+              <svg id="offline-chart" class="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Site Overview</p>
+              <h3>Monitored Sites</h3>
+            </div>
+          </div>
+          <div id="sites-grid" class="sites-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Site Details</p>
+              <h3 id="site-detail-title">Select a site card</h3>
+            </div>
+          </div>
+          <div id="site-detail" class="detail-empty">
+            Site details will appear here after you load the dashboard and choose a site.
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
