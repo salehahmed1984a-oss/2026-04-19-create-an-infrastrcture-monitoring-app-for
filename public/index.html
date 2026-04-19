@@ -51,10 +51,10 @@
         </section>
 
         <section class="legend-card">
-          <h2>Operational Notes</h2>
+          <h2>How To Use It</h2>
           <p class="muted">
-            Site scoring uses device status, warning and critical alarms, plus high CPU and memory pressure to surface
-            the places that need attention first.
+            Load the organization, click a site card, then click an AP or switch row to open deep diagnostics,
+            firmware analysis, power details, and history.
           </p>
         </section>
       </aside>
@@ -63,10 +63,10 @@
         <header class="hero">
           <div>
             <p class="eyebrow">Network Operations</p>
-            <h2>Live visibility across your Mist-managed sites</h2>
+            <h2>Interactive visibility across your Mist-managed infrastructure</h2>
             <p class="hero-copy">
-              Track device availability, client load, trend movement, and alarm pressure across your organization
-              without exposing your Mist token to the browser.
+              Explore APs and switches together, spot firmware drift, power changes, client pressure, and configuration
+              risk, then click down into device-level detail.
             </p>
           </div>
           <div class="hero-badge">
@@ -76,7 +76,7 @@
 
         <section id="message" class="message hidden"></section>
 
-        <section class="stats-grid" id="summary-grid">
+        <section class="stats-grid">
           <article class="stat-card">
             <span class="stat-label">Health Score</span>
             <strong id="summary-health">-</strong>
@@ -90,6 +90,14 @@
             <strong id="summary-devices">-</strong>
           </article>
           <article class="stat-card">
+            <span class="stat-label">Access Points</span>
+            <strong id="summary-aps">-</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Switches</span>
+            <strong id="summary-switches">-</strong>
+          </article>
+          <article class="stat-card">
             <span class="stat-label">Offline</span>
             <strong id="summary-offline">-</strong>
           </article>
@@ -97,17 +105,9 @@
             <span class="stat-label">Clients</span>
             <strong id="summary-clients">-</strong>
           </article>
-          <article class="stat-card">
+          <article class="stat-card accent">
             <span class="stat-label">Risk Flags</span>
             <strong id="summary-risk">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="stat-label">Warnings</span>
-            <strong id="summary-warnings">-</strong>
-          </article>
-          <article class="stat-card accent">
-            <span class="stat-label">Critical</span>
-            <strong id="summary-critical">-</strong>
           </article>
         </section>
 
@@ -149,12 +149,24 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <p class="eyebrow">Site Details</p>
+              <p class="eyebrow">Site Intelligence</p>
               <h3 id="site-detail-title">Select a site card</h3>
             </div>
           </div>
           <div id="site-detail" class="detail-empty">
-            Site details will appear here after you load the dashboard and choose a site.
+            Site recommendations, APs, and switches will appear here after you choose a site.
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Device Drilldown</p>
+              <h3 id="device-detail-title">Select an AP or switch</h3>
+            </div>
+          </div>
+          <div id="device-detail" class="detail-empty">
+            Click an AP or switch row to open interactive device diagnostics.
           </div>
         </section>
       </main>

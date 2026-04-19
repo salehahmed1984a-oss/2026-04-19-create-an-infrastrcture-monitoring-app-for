@@ -1,7 +1,7 @@
 const state = {
   dashboard: null,
   selectedSiteId: null,
-  siteDetails: new Map(),
+  selectedDeviceId: null,
   history: [],
   refreshTimer: null
 };
@@ -17,17 +17,19 @@ const elements = {
   summaryHealth: document.querySelector("#summary-health"),
   summarySites: document.querySelector("#summary-sites"),
   summaryDevices: document.querySelector("#summary-devices"),
+  summaryAps: document.querySelector("#summary-aps"),
+  summarySwitches: document.querySelector("#summary-switches"),
   summaryOffline: document.querySelector("#summary-offline"),
   summaryClients: document.querySelector("#summary-clients"),
   summaryRisk: document.querySelector("#summary-risk"),
-  summaryWarnings: document.querySelector("#summary-warnings"),
-  summaryCritical: document.querySelector("#summary-critical"),
   historyPoints: document.querySelector("#history-points"),
   healthChart: document.querySelector("#health-chart"),
   offlineChart: document.querySelector("#offline-chart"),
   sitesGrid: document.querySelector("#sites-grid"),
   siteDetail: document.querySelector("#site-detail"),
-  siteDetailTitle: document.querySelector("#site-detail-title")
+  siteDetailTitle: document.querySelector("#site-detail-title"),
+  deviceDetail: document.querySelector("#device-detail"),
+  deviceDetailTitle: document.querySelector("#device-detail-title")
 };
 
 function formatNumber(value) {
@@ -39,7 +41,11 @@ function formatDate(value) {
     return "n/a";
   }
 
-  const date = new Date(value);
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric) && numeric > 1000000000
+    ? new Date(numeric > 1000000000000 ? numeric : numeric * 1000)
+    : new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return String(value);
   }
@@ -48,6 +54,15 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function showMessage(message, type = "info") {
@@ -75,24 +90,26 @@ function healthClass(health) {
   return "healthy";
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function statusClass(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("connected") || normalized.includes("online")) {
+    return "healthy";
+  }
+  if (normalized.includes("warn") || normalized.includes("degrad")) {
+    return "degraded";
+  }
+  return "critical";
 }
 
 function renderSummary(summary) {
   elements.summaryHealth.textContent = `${formatNumber(summary.healthScore)}%`;
   elements.summarySites.textContent = formatNumber(summary.siteCount);
   elements.summaryDevices.textContent = formatNumber(summary.deviceCount);
+  elements.summaryAps.textContent = formatNumber(summary.apCount);
+  elements.summarySwitches.textContent = formatNumber(summary.switchCount);
   elements.summaryOffline.textContent = formatNumber(summary.offlineDevices);
   elements.summaryClients.textContent = formatNumber(summary.totalClients);
-  elements.summaryRisk.textContent = formatNumber(summary.utilizationRisk);
-  elements.summaryWarnings.textContent = formatNumber(summary.warningAlarms);
-  elements.summaryCritical.textContent = formatNumber(summary.criticalAlarms);
+  elements.summaryRisk.textContent = formatNumber(summary.riskFlags);
 }
 
 function scheduleRefresh() {
@@ -114,59 +131,11 @@ function scheduleRefresh() {
     }
 
     try {
-      await loadDashboard(state.dashboard.orgId, { silent: true, preserveSite: true });
+      await loadDashboard(state.dashboard.orgId, { silent: true, preserveSelection: true });
     } catch (error) {
       showMessage(error instanceof Error ? error.message : String(error), "error");
     }
   }, interval);
-}
-
-function renderSites(sites) {
-  elements.sitesGrid.innerHTML = "";
-
-  for (const entry of sites) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "site-card";
-    if (entry.site.id === state.selectedSiteId) {
-      card.classList.add("active");
-    }
-
-    const badgeClass = healthClass(entry.site.health);
-    const topTypes = entry.site.alarms.topTypes?.length
-      ? entry.site.alarms.topTypes.map((item) => `${escapeHtml(item.type)} (${item.count})`).join(", ")
-      : "No open alarm types";
-
-    card.innerHTML = `
-      <div class="site-card-header">
-        <p class="eyebrow">Health Score</p>
-        <span class="health-pill ${badgeClass}">${escapeHtml(entry.site.health)}</span>
-      </div>
-      <h4>${escapeHtml(entry.site.name)}</h4>
-      <div class="score-bar">
-        <span style="width: ${entry.site.score}%"></span>
-      </div>
-      <div class="metric-list">
-        <div class="metric-row"><span>Devices</span><strong>${formatNumber(entry.site.deviceCount)}</strong></div>
-        <div class="metric-row"><span>Online</span><strong>${formatNumber(entry.site.onlineDevices)}</strong></div>
-        <div class="metric-row"><span>Offline</span><strong>${formatNumber(entry.site.offlineDevices)}</strong></div>
-        <div class="metric-row"><span>Clients</span><strong>${formatNumber(entry.site.totalClients)}</strong></div>
-        <div class="metric-row"><span>Avg CPU</span><strong>${formatNumber(entry.site.avgCpu)}%</strong></div>
-        <div class="metric-row"><span>Avg Memory</span><strong>${formatNumber(entry.site.avgMemory)}%</strong></div>
-        <div class="metric-row"><span>Warnings</span><strong>${formatNumber(entry.site.alarms.warning)}</strong></div>
-        <div class="metric-row"><span>Critical</span><strong>${formatNumber(entry.site.alarms.critical)}</strong></div>
-      </div>
-      <p class="card-note">${topTypes}</p>
-    `;
-
-    card.addEventListener("click", async () => {
-      state.selectedSiteId = entry.site.id;
-      renderSites(state.dashboard.sites);
-      await renderSelectedSite();
-    });
-
-    elements.sitesGrid.append(card);
-  }
 }
 
 function buildTrendPath(points, valueAccessor, maxValueOverride = null) {
@@ -215,152 +184,282 @@ async function loadHistory(orgId) {
   renderChart(elements.offlineChart, state.history, (point) => point.summary.offlineDevices, "#ff6d6d");
 }
 
-async function fetchSiteDetails(siteId) {
-  if (state.siteDetails.has(siteId)) {
-    return state.siteDetails.get(siteId);
-  }
+function renderSites(sites) {
+  elements.sitesGrid.innerHTML = "";
 
-  const response = await fetch(`/api/site?siteId=${encodeURIComponent(siteId)}`);
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Failed to load site details.");
-  }
+  for (const entry of sites) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "site-card";
+    if (entry.site.id === state.selectedSiteId) {
+      card.classList.add("active");
+    }
 
-  state.siteDetails.set(siteId, payload);
-  return payload;
+    const badgeClass = healthClass(entry.site.health);
+    card.innerHTML = `
+      <div class="site-card-header">
+        <p class="eyebrow">Health Score</p>
+        <span class="health-pill ${badgeClass}">${escapeHtml(entry.site.health)}</span>
+      </div>
+      <h4>${escapeHtml(entry.site.name)}</h4>
+      <div class="score-bar">
+        <span style="width: ${entry.site.score}%"></span>
+      </div>
+      <div class="metric-list">
+        <div class="metric-row"><span>Devices</span><strong>${formatNumber(entry.site.deviceCount)}</strong></div>
+        <div class="metric-row"><span>APs</span><strong>${formatNumber(entry.site.apCount)}</strong></div>
+        <div class="metric-row"><span>Switches</span><strong>${formatNumber(entry.site.switchCount)}</strong></div>
+        <div class="metric-row"><span>Offline</span><strong>${formatNumber(entry.site.offlineDevices)}</strong></div>
+        <div class="metric-row"><span>Clients</span><strong>${formatNumber(entry.site.totalClients)}</strong></div>
+        <div class="metric-row"><span>Risk</span><strong>${formatNumber(entry.site.riskFlags)}</strong></div>
+      </div>
+    `;
+
+    card.addEventListener("click", async () => {
+      state.selectedSiteId = entry.site.id;
+      state.selectedDeviceId = entry.accessPoints[0]?.id || entry.switches[0]?.id || null;
+      renderSites(state.dashboard.sites);
+      renderSelectedSite();
+      await renderSelectedDevice();
+    });
+
+    elements.sitesGrid.append(card);
+  }
 }
 
-async function renderSelectedSite() {
+function renderRecommendationCards(recommendations) {
+  if (!recommendations.length) {
+    return `<div class="empty-callout">No immediate attention items from the current snapshot.</div>`;
+  }
+
+  return recommendations
+    .map((item) => `<article class="analysis-card">${escapeHtml(item)}</article>`)
+    .join("");
+}
+
+function renderDeviceRows(devices) {
+  if (!devices.length) {
+    return `<div class="empty-callout">No devices returned in this category.</div>`;
+  }
+
+  return devices
+    .map((device) => {
+      const selected = device.id === state.selectedDeviceId ? "active" : "";
+      const typeLabel = device.type === "switch" ? "Switch" : "AP";
+      const statusTone = statusClass(device.status);
+
+      return `
+        <button type="button" class="device-row ${selected}" data-device-id="${escapeHtml(device.id)}">
+          <div>
+            <strong>${escapeHtml(device.name)}</strong>
+            <p>${escapeHtml(typeLabel)} | ${escapeHtml(device.model)} | ${escapeHtml(device.version || "unknown version")}</p>
+          </div>
+          <div class="device-row-right">
+            <span class="health-pill ${statusTone}">${escapeHtml(device.status || "unknown")}</span>
+            <span class="mini-pill">${formatNumber(device.clients || 0)} clients</span>
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function attachDeviceRowHandlers() {
+  document.querySelectorAll("[data-device-id]").forEach((element) => {
+    element.addEventListener("click", async () => {
+      state.selectedDeviceId = element.getAttribute("data-device-id");
+      renderSelectedSite();
+      await renderSelectedDevice();
+    });
+  });
+}
+
+function renderSelectedSite() {
   const selected = state.dashboard?.sites?.find((entry) => entry.site.id === state.selectedSiteId);
   if (!selected) {
     elements.siteDetailTitle.textContent = "Select a site card";
     elements.siteDetail.className = "detail-empty";
-    elements.siteDetail.textContent = "Site details will appear here after you load the dashboard and choose a site.";
+    elements.siteDetail.textContent = "Site recommendations, APs, and switches will appear here after you choose a site.";
     return;
   }
 
   elements.siteDetailTitle.textContent = selected.site.name;
   elements.siteDetail.className = "";
-  elements.siteDetail.innerHTML = `<div class="detail-empty">Loading detailed view for ${escapeHtml(selected.site.name)}...</div>`;
 
-  try {
-    const details = await fetchSiteDetails(selected.site.id);
-    const siteHistoryResponse = await fetch(`/api/history?orgId=${encodeURIComponent(state.dashboard.orgId)}&siteId=${encodeURIComponent(selected.site.id)}`);
-    const siteHistoryPayload = await siteHistoryResponse.json();
-    const siteHistory = siteHistoryResponse.ok ? siteHistoryPayload.points || [] : [];
-
-    const devicesMarkup = details.devices.length
-      ? `
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Clients</th>
-              <th>CPU</th>
-              <th>Memory</th>
-              <th>IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${details.devices
-              .slice(0, 12)
-              .map(
-                (device) => `
-                  <tr>
-                    <td>${escapeHtml(device.name)}</td>
-                    <td>${escapeHtml(device.status)}</td>
-                    <td>${formatNumber(device.clients)}</td>
-                    <td>${formatNumber(device.cpu)}%</td>
-                    <td>${formatNumber(device.memory)}%</td>
-                    <td>${escapeHtml(device.ip)}</td>
-                  </tr>
-                `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      `
-      : `<p class="muted">No device statistics returned for this site.</p>`;
-
-    const alarmsMarkup = details.alarms.length
-      ? details.alarms
-          .map(
-            (alarm) => `
-              <article class="alarm-item">
-                <strong>${escapeHtml(alarm.type || "Unknown alarm")}</strong>
-                <p>Severity: ${escapeHtml(alarm.severity || "n/a")} | Group: ${escapeHtml(alarm.group || "n/a")}</p>
-                <p>Opened: ${formatDate(alarm.timestamp ? alarm.timestamp * 1000 : alarm.created_time)}</p>
-              </article>
-            `
-          )
-          .join("")
-      : `<p class="muted">No open alarms returned for this site.</p>`;
-
-    const topDevicesMarkup = details.topDevices.length
-      ? details.topDevices
-          .map(
-            (device) => `
-              <div class="metric-row">
-                <span>${escapeHtml(device.name)}</span>
-                <strong>${formatNumber(device.clients)} clients</strong>
-              </div>
-            `
-          )
-          .join("")
-      : `<p class="muted">No high-load devices returned yet.</p>`;
-
-    const errorNotes = [details.errors.devices, details.errors.alarms, details.errors.alarmCounts].filter(Boolean);
-    const errorMarkup = errorNotes.length
-      ? `<div class="message error">Partial data warning: ${escapeHtml(errorNotes.join(" | "))}</div>`
-      : "";
-
-    elements.siteDetail.innerHTML = `
-      ${errorMarkup}
-      <div class="detail-grid">
-        <section class="detail-section">
-          <p class="eyebrow">Operations</p>
-          <h4>Device Statistics</h4>
-          <div class="chip-row">
-            <span class="mini-pill">Score ${formatNumber(details.site.score)}%</span>
-            <span class="mini-pill">Avg CPU ${formatNumber(details.site.avgCpu)}%</span>
-            <span class="mini-pill">Avg Memory ${formatNumber(details.site.avgMemory)}%</span>
-          </div>
-          ${devicesMarkup}
-        </section>
-        <section class="detail-section">
-          <p class="eyebrow">Attention</p>
-          <h4>Active Issues</h4>
-          <div class="chip-row">
-            <span class="mini-pill">Warnings ${formatNumber(details.site.alarms.warning)}</span>
-            <span class="mini-pill">Critical ${formatNumber(details.site.alarms.critical)}</span>
-            <span class="mini-pill">Risk ${formatNumber(details.site.utilizationRisk)}</span>
-          </div>
-          <div class="alarm-list">${alarmsMarkup}</div>
-        </section>
+  const topDevicesMarkup = selected.topDevices.length
+    ? selected.topDevices.map((device) => `
+      <div class="metric-row">
+        <span>${escapeHtml(device.name)}</span>
+        <strong>${formatNumber(device.clients)} clients</strong>
       </div>
-      <div class="detail-grid secondary">
-        <section class="detail-section">
-          <p class="eyebrow">Demand</p>
-          <h4>Top Client Load Devices</h4>
-          <div class="metric-list">${topDevicesMarkup}</div>
-        </section>
-        <section class="detail-section">
-          <p class="eyebrow">Trend</p>
-          <h4>Site Health History</h4>
-          <svg id="site-history-chart" class="chart compact-chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
-        </section>
-      </div>
+    `).join("")
+    : `<div class="empty-callout">No client load data returned yet.</div>`;
+
+  const errorNotes = Object.values(selected.errors).filter(Boolean);
+  const errorMarkup = errorNotes.length
+    ? `<div class="message error">Partial data warning: ${escapeHtml(errorNotes.join(" | "))}</div>`
+    : "";
+
+  elements.siteDetail.innerHTML = `
+    ${errorMarkup}
+    <div class="detail-grid">
+      <section class="detail-section">
+        <p class="eyebrow">Attention Queue</p>
+        <h4>Current Recommendations</h4>
+        <div class="analysis-grid">${renderRecommendationCards(selected.recommendations)}</div>
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">Demand</p>
+        <h4>Top Loaded Devices</h4>
+        <div class="metric-list">${topDevicesMarkup}</div>
+      </section>
+    </div>
+    <div class="detail-grid secondary">
+      <section class="detail-section">
+        <p class="eyebrow">Wireless</p>
+        <h4>Access Points</h4>
+        <div class="device-list">${renderDeviceRows(selected.accessPoints)}</div>
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">Wired</p>
+        <h4>Switches</h4>
+        <div class="device-list">${renderDeviceRows(selected.switches)}</div>
+      </section>
+    </div>
+  `;
+
+  attachDeviceRowHandlers();
+}
+
+function renderHistorySummaryChart(points) {
+  const svgId = "device-history-chart";
+  const markup = `<svg id="${svgId}" class="chart compact-chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>`;
+  setTimeout(() => {
+    const svg = document.querySelector(`#${svgId}`);
+    if (svg) {
+      renderChart(svg, points, (point) => point.device.clients || 0, "#3bd38d");
+    }
+  }, 0);
+  return markup;
+}
+
+async function renderSelectedDevice() {
+  const site = state.dashboard?.sites?.find((entry) => entry.site.id === state.selectedSiteId);
+  const localDevice = site ? [...site.accessPoints, ...site.switches].find((device) => device.id === state.selectedDeviceId) : null;
+
+  if (!site || !localDevice) {
+    elements.deviceDetailTitle.textContent = "Select an AP or switch";
+    elements.deviceDetail.className = "detail-empty";
+    elements.deviceDetail.textContent = "Click an AP or switch row to open interactive device diagnostics.";
+    return;
+  }
+
+  elements.deviceDetailTitle.textContent = localDevice.name;
+  elements.deviceDetail.className = "";
+  elements.deviceDetail.innerHTML = `<div class="detail-empty">Loading device diagnostics for ${escapeHtml(localDevice.name)}...</div>`;
+
+  const response = await fetch(
+    `/api/device?orgId=${encodeURIComponent(state.dashboard.orgId)}&siteId=${encodeURIComponent(site.site.id)}&deviceId=${encodeURIComponent(localDevice.id)}`
+  );
+  const payload = await response.json();
+
+  if (!response.ok) {
+    elements.deviceDetail.className = "detail-empty";
+    elements.deviceDetail.textContent = payload.error || "Failed to load device details.";
+    return;
+  }
+
+  const device = payload.device;
+  const history = payload.history || [];
+  const observationsMarkup = device.insights.observations.length
+    ? device.insights.observations.map((item) => `<div class="analysis-card subtle">${escapeHtml(item)}</div>`).join("")
+    : `<div class="empty-callout">No extra observations from the current snapshot.</div>`;
+
+  const recommendationsMarkup = device.insights.recommendations.length
+    ? device.insights.recommendations.map((item) => `<div class="analysis-card">${escapeHtml(item)}</div>`).join("")
+    : `<div class="empty-callout">No recommendations right now.</div>`;
+
+  const firmwareMarkup = `
+    <div class="metric-row"><span>Current Version</span><strong>${escapeHtml(device.insights.firmware.currentVersion || "unknown")}</strong></div>
+    <div class="metric-row"><span>Newest Seen Same Model</span><strong>${escapeHtml(device.insights.firmware.newestSeenVersion || "n/a")}</strong></div>
+    <div class="metric-row"><span>Review Recommended</span><strong>${device.insights.firmware.reviewRecommended ? "Yes" : "No"}</strong></div>
+  `;
+
+  const typeSpecificMarkup = device.type === "switch"
+    ? `
+      <div class="metric-row"><span>PoE Draw</span><strong>${escapeHtml(device.power?.power_draw ?? "n/a")} W</strong></div>
+      <div class="metric-row"><span>PoE Reserved</span><strong>${escapeHtml(device.power?.power_reserved ?? "n/a")} W</strong></div>
+      <div class="metric-row"><span>PoE Max</span><strong>${escapeHtml(device.power?.max_power ?? "n/a")} W</strong></div>
+      <div class="metric-row"><span>Ports Up</span><strong>${formatNumber(device.portSummary?.upPorts || 0)}</strong></div>
+      <div class="metric-row"><span>Ports Down</span><strong>${formatNumber(device.portSummary?.downPorts || 0)}</strong></div>
+      <div class="metric-row"><span>Max Temperature</span><strong>${escapeHtml(device.maxTemperature ?? "n/a")} °C</strong></div>
+      <div class="metric-row"><span>Pending Version</span><strong>${escapeHtml(device.pendingVersion || "none")}</strong></div>
+    `
+    : `
+      <div class="metric-row"><span>2.4 GHz Power</span><strong>${escapeHtml(device.txPower24 ?? "n/a")} dBm</strong></div>
+      <div class="metric-row"><span>5 GHz Power</span><strong>${escapeHtml(device.txPower5 ?? "n/a")} dBm</strong></div>
+      <div class="metric-row"><span>2.4 Radio Disabled</span><strong>${device.tx24Disabled ? "Yes" : "No"}</strong></div>
+      <div class="metric-row"><span>5 Radio Disabled</span><strong>${device.tx5Disabled ? "Yes" : "No"}</strong></div>
+      <div class="metric-row"><span>Mesh Role</span><strong>${escapeHtml(device.meshRole || "none")}</strong></div>
     `;
 
-    const siteChart = document.querySelector("#site-history-chart");
-    if (siteChart) {
-      renderChart(siteChart, siteHistory, (point) => point.site.score, "#3bd38d", 100);
-    }
-  } catch (error) {
-    elements.siteDetail.className = "detail-empty";
-    elements.siteDetail.textContent = error instanceof Error ? error.message : String(error);
-  }
+  const busiestPortsMarkup = device.type === "switch" && device.portSummary?.busiest?.length
+    ? device.portSummary.busiest.map((port) => `
+      <div class="metric-row">
+        <span>${escapeHtml(port.name)}</span>
+        <strong>${port.up ? "up" : "down"} | ${formatNumber(port.rxPkts + port.txPkts)} packets</strong>
+      </div>
+    `).join("")
+    : `<div class="empty-callout">No switch port activity summary for this device.</div>`;
+
+  elements.deviceDetail.innerHTML = `
+    <div class="detail-grid">
+      <section class="detail-section">
+        <p class="eyebrow">Current State</p>
+        <h4>${escapeHtml(device.type === "switch" ? "Switch diagnostics" : "Access point diagnostics")}</h4>
+        <div class="chip-row">
+          <span class="mini-pill">${escapeHtml(device.status || "unknown")}</span>
+          <span class="mini-pill">${formatNumber(device.clients || 0)} clients</span>
+          <span class="mini-pill">CPU ${formatNumber(device.cpu || 0)}%</span>
+          <span class="mini-pill">Memory ${formatNumber(device.memory || 0)}%</span>
+        </div>
+        <div class="metric-list">
+          <div class="metric-row"><span>Model</span><strong>${escapeHtml(device.model)}</strong></div>
+          <div class="metric-row"><span>IP</span><strong>${escapeHtml(device.ip || "n/a")}</strong></div>
+          <div class="metric-row"><span>Last Seen</span><strong>${formatDate(device.lastSeen)}</strong></div>
+          <div class="metric-row"><span>Uptime</span><strong>${formatNumber(device.uptime || 0)} sec</strong></div>
+          ${typeSpecificMarkup}
+        </div>
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">Firmware</p>
+        <h4>Upgrade Review</h4>
+        <div class="metric-list">${firmwareMarkup}</div>
+        <div class="analysis-grid top-space">${recommendationsMarkup}</div>
+      </section>
+    </div>
+    <div class="detail-grid secondary">
+      <section class="detail-section">
+        <p class="eyebrow">Observations</p>
+        <h4>What Changed Or Stands Out</h4>
+        <div class="analysis-grid">${observationsMarkup}</div>
+        ${device.type === "switch" ? `<div class="metric-list top-space">${busiestPortsMarkup}</div>` : ""}
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">History</p>
+        <h4>Recent Device Trend</h4>
+        ${renderHistorySummaryChart(history)}
+      </section>
+    </div>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Diagnostics</p>
+      <h4>Raw Device Payload</h4>
+      <details>
+        <summary>Open raw JSON</summary>
+        <pre class="raw-json">${escapeHtml(JSON.stringify(device.raw, null, 2))}</pre>
+      </details>
+    </section>
+  `;
 }
 
 async function loadConfig() {
@@ -376,31 +475,37 @@ async function loadConfig() {
 }
 
 async function loadDashboard(orgId, options = {}) {
-  const { silent = false, preserveSite = false } = options;
+  const { silent = false, preserveSelection = false } = options;
 
   if (!silent) {
     clearMessage();
-    showMessage("Loading Mist site inventory and monitoring data...");
+    showMessage("Loading Mist infrastructure inventory, AP telemetry, switch telemetry, and recommendations...");
   }
 
   const response = await fetch(`/api/dashboard?orgId=${encodeURIComponent(orgId)}`);
   const payload = await response.json();
-
   if (!response.ok) {
     throw new Error(payload.error || "Failed to load dashboard.");
   }
 
   state.dashboard = payload;
-  state.siteDetails.clear();
-  if (!preserveSite || !payload.sites.some((entry) => entry.site.id === state.selectedSiteId)) {
+  if (!preserveSelection || !payload.sites.some((entry) => entry.site.id === state.selectedSiteId)) {
     state.selectedSiteId = payload.sites[0]?.site.id || null;
+  }
+
+  const selectedSite = payload.sites.find((entry) => entry.site.id === state.selectedSiteId);
+  const selectedDeviceStillExists = selectedSite && [...selectedSite.accessPoints, ...selectedSite.switches].some((device) => device.id === state.selectedDeviceId);
+  if (!preserveSelection || !selectedDeviceStillExists) {
+    state.selectedDeviceId = selectedSite?.accessPoints[0]?.id || selectedSite?.switches[0]?.id || null;
   }
 
   elements.generatedAt.textContent = `Updated ${formatDate(payload.generatedAt)}`;
   renderSummary(payload.summary);
   renderSites(payload.sites);
   await loadHistory(orgId);
-  await renderSelectedSite();
+  renderSelectedSite();
+  await renderSelectedDevice();
+
   if (!silent) {
     clearMessage();
   }

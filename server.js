@@ -132,8 +132,8 @@ async function mistRequest(apiPath, searchParams = undefined) {
 
   const response = await fetch(url, { headers });
   const raw = await response.text();
-
   let data = raw;
+
   try {
     data = raw ? JSON.parse(raw) : null;
   } catch {
@@ -152,114 +152,369 @@ async function mistRequest(apiPath, searchParams = undefined) {
   return { ok: true, status: response.status, data };
 }
 
-function normalizeDevice(device) {
-  const status = device.status || device.state || "unknown";
-  const uptime = Number(device.uptime || 0);
-  const clients = Number(device.num_clients || device.clients || 0);
-  const cpu = Number(device.cpu || 0);
-  const memory = Number(device.mem || device.memory || 0);
+function toArray(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (Array.isArray(value?.results)) {
+    return value.results;
+  }
+  if (Array.isArray(value?.value)) {
+    return value.value;
+  }
+  return [];
+}
 
+function formatEpochSeconds(value) {
+  if (!value) {
+    return null;
+  }
+  return new Date(Number(value) * 1000).toISOString();
+}
+
+function compareLooseVersions(leftValue, rightValue) {
+  const tokenize = (value) => String(value || "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? Number(part) : part.toLowerCase()));
+
+  const left = tokenize(leftValue);
+  const right = tokenize(rightValue);
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const a = left[index];
+    const b = right[index];
+    if (a === undefined) {
+      return -1;
+    }
+    if (b === undefined) {
+      return 1;
+    }
+    if (typeof a === "number" && typeof b === "number" && a !== b) {
+      return a > b ? 1 : -1;
+    }
+    if (String(a) !== String(b)) {
+      return String(a) > String(b) ? 1 : -1;
+    }
+  }
+
+  return 0;
+}
+
+function pickNewestVersion(versions = []) {
+  return versions
+    .filter(Boolean)
+    .sort(compareLooseVersions)
+    .at(-1) || null;
+}
+
+function normalizeApInventory(device, orgInventoryItem = null) {
   return {
-    id: device.id || device.mac || `${device.name || "device"}-${Math.random().toString(16).slice(2)}`,
-    name: device.name || device.hostname || device.mac || "Unnamed device",
-    model: device.model || "Unknown",
-    mac: device.mac || "n/a",
-    status,
-    uptime,
-    clients,
-    cpu,
-    memory,
-    ip: device.ip || device.ip_stat?.ip || "n/a",
-    version: device.version || device.firmware_version || "n/a",
-    lastSeen: device.last_seen || device.modified_time || null
+    id: device.id || orgInventoryItem?.id,
+    type: "ap",
+    name: device.name || orgInventoryItem?.name || device.mac || "Unnamed AP",
+    model: device.model || orgInventoryItem?.model || "Unknown",
+    mac: device.mac || orgInventoryItem?.mac || "n/a",
+    serial: device.serial || orgInventoryItem?.serial || "n/a",
+    version: orgInventoryItem?.version || device.version || null,
+    connected: Boolean(orgInventoryItem?.connected),
+    txPower24: device.radio_config?.band_24?.power ?? null,
+    txPower5: device.radio_config?.band_5?.power ?? null,
+    tx24Disabled: Boolean(device.radio_config?.band_24?.disabled),
+    tx5Disabled: Boolean(device.radio_config?.band_5?.disabled),
+    meshRole: device.mesh?.role || null,
+    siteId: device.site_id || orgInventoryItem?.site_id || null,
+    createdTime: device.created_time || orgInventoryItem?.created_time || null,
+    modifiedTime: device.modified_time || orgInventoryItem?.modified_time || null,
+    raw: {
+      inventory: device,
+      orgInventory: orgInventoryItem
+    }
   };
 }
 
-function severityCount(alarmCounts, severities) {
-  return alarmCounts
-    .filter((item) => severities.includes(String(item.severity || "").toLowerCase()))
-    .reduce((sum, item) => sum + Number(item.count || 0), 0);
+function normalizeApStats(device) {
+  return {
+    id: device.id || device.mac,
+    type: "ap",
+    status: device.status || device.state || "unknown",
+    uptime: Number(device.uptime || 0),
+    clients: Number(device.num_clients || device.clients || 0),
+    cpu: Number(device.cpu || 0),
+    memory: Number(device.mem || device.memory || 0),
+    ip: device.ip || device.ip_stat?.ip || "n/a",
+    version: device.version || device.firmware_version || null,
+    lastSeen: device.last_seen || device.modified_time || null,
+    raw: device
+  };
 }
 
-function computeDeviceHealthIndicators(devices) {
-  const highCpuDevices = devices.filter((device) => Number(device.cpu || 0) >= 80).length;
-  const highMemoryDevices = devices.filter((device) => Number(device.memory || 0) >= 80).length;
-  const busyDevices = devices.filter((device) => Number(device.clients || 0) >= 25).length;
+function summarizeSwitchPorts(ifStat = {}) {
+  const entries = Object.entries(ifStat).filter(([name]) => {
+    const lower = name.toLowerCase();
+    return lower.startsWith("ge-") || lower.startsWith("xe-") || lower.startsWith("et-") || lower.startsWith("mge-");
+  });
 
-  return { highCpuDevices, highMemoryDevices, busyDevices };
+  const upPorts = entries.filter(([, stats]) => Boolean(stats.up)).length;
+  const downPorts = entries.length - upPorts;
+  const busiest = entries
+    .map(([name, stats]) => ({
+      name,
+      up: Boolean(stats.up),
+      rxPkts: Number(stats.rx_pkts || 0),
+      txPkts: Number(stats.tx_pkts || 0),
+      vlan: stats.vlan || null
+    }))
+    .sort((left, right) => (right.rxPkts + right.txPkts) - (left.rxPkts + left.txPkts))
+    .slice(0, 6);
+
+  return {
+    totalPorts: entries.length,
+    upPorts,
+    downPorts,
+    busiest
+  };
+}
+
+function summarizeSwitchEnvironment(moduleStat = []) {
+  const fpc = moduleStat.find((module) => module.type === "fpc") || moduleStat[0] || {};
+  const temperatures = Array.isArray(fpc.temperatures) ? fpc.temperatures : [];
+  const maxTemperature = temperatures.length
+    ? Math.max(...temperatures.map((sensor) => Number(sensor.celsius || 0)))
+    : null;
+  const nonOkSensors = temperatures.filter((sensor) => String(sensor.status || "").toLowerCase() !== "ok").length;
+
+  return {
+    poe: fpc.poe || null,
+    maxTemperature,
+    nonOkSensors,
+    moduleVersion: fpc.version || null,
+    pendingVersion: fpc.pending_version || null
+  };
+}
+
+function normalizeSwitchInventory(device) {
+  return {
+    id: device.id,
+    type: "switch",
+    name: device.name || device.hostname || device.chassis_model || "Unnamed switch",
+    hostname: device.hostname || device.name || null,
+    model: device.model || device.chassis_model || "Unknown",
+    mac: device.mac || device.chassis_mac || "n/a",
+    serial: device.serial || device.chassis_serial || "n/a",
+    version: device.version || null,
+    connected: Boolean(device.connected),
+    siteId: device.site_id || null,
+    createdTime: device.created_time || null,
+    modifiedTime: device.modified_time || null,
+    raw: {
+      orgInventory: device
+    }
+  };
+}
+
+function normalizeSwitchStats(device) {
+  const portSummary = summarizeSwitchPorts(device.if_stat || {});
+  const environment = summarizeSwitchEnvironment(device.module_stat || []);
+
+  return {
+    id: device.id || device._id || device.mac,
+    type: "switch",
+    status: device.status || "unknown",
+    uptime: Number(device.uptime || 0),
+    clients: Number(device.clients_stats?.total?.num_wired_clients || 0),
+    connectedAps: Number(Array.isArray(device.clients_stats?.total?.num_aps) ? device.clients_stats.total.num_aps[0] || 0 : 0),
+    cpu: Number(device.cpu_stat?.user || 0) + Number(device.cpu_stat?.system || 0),
+    memory: Number(device.memory_stat?.usage || 0),
+    ip: device.ip || device.ip_stat?.ip || device.ext_ip || "n/a",
+    version: device.version || null,
+    lastSeen: device.last_seen || null,
+    fwVersionsOutOfSync: Boolean(device.fw_versions_outofsync),
+    configStatus: device.config_status || null,
+    configTimestamp: device.config_timestamp || null,
+    pendingVersion: device.fwupdate?.pending_version || environment.pendingVersion || null,
+    lastTrouble: device.last_trouble || null,
+    power: environment.poe,
+    maxTemperature: environment.maxTemperature,
+    nonOkSensors: environment.nonOkSensors,
+    portSummary,
+    raw: device
+  };
+}
+
+function mergeDeviceState(inventoryDevice = {}, statsDevice = {}) {
+  return {
+    ...inventoryDevice,
+    ...statsDevice,
+    id: statsDevice.id || inventoryDevice.id,
+    name: inventoryDevice.name || statsDevice.name,
+    model: inventoryDevice.model || statsDevice.model,
+    mac: inventoryDevice.mac || statsDevice.mac,
+    serial: inventoryDevice.serial || statsDevice.serial,
+    version: statsDevice.version || inventoryDevice.version,
+    status: statsDevice.status || (inventoryDevice.connected ? "connected" : "unknown"),
+    raw: {
+      inventory: inventoryDevice.raw || null,
+      stats: statsDevice.raw || null
+    }
+  };
+}
+
+function buildModelVersionIndex(orgInventory = []) {
+  const index = new Map();
+
+  for (const device of orgInventory) {
+    const key = `${device.type}:${device.model}`;
+    const current = index.get(key) || [];
+    if (device.version) {
+      current.push(device.version);
+    }
+    index.set(key, current);
+  }
+
+  return index;
+}
+
+function deriveFirmwareAssessment(device, modelVersionIndex) {
+  const key = `${device.type}:${device.model}`;
+  const newestSeen = pickNewestVersion(modelVersionIndex.get(key) || []);
+  const current = device.version || null;
+  const drift = current && newestSeen ? compareLooseVersions(current, newestSeen) < 0 : false;
+
+  return {
+    currentVersion: current,
+    newestSeenVersion: newestSeen,
+    drift,
+    reviewRecommended: Boolean(drift || device.pendingVersion || device.fwVersionsOutOfSync)
+  };
+}
+
+function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = new Map()) {
+  const firmware = deriveFirmwareAssessment(device, modelVersionIndex);
+  const recommendations = [];
+  const observations = [];
+
+  if (device.status && !String(device.status).toLowerCase().includes("connected") && !String(device.status).toLowerCase().includes("online")) {
+    recommendations.push(`${device.name} is not connected right now.`);
+  }
+
+  if (firmware.drift) {
+    recommendations.push(`${device.name} is running ${firmware.currentVersion}, behind the newest ${device.model} version seen in the org (${firmware.newestSeenVersion}).`);
+  }
+
+  if (device.type === "ap") {
+    if (device.clients >= 25) {
+      recommendations.push(`${device.name} is carrying a high client load (${device.clients}).`);
+    }
+    if (device.txPower5 !== null || device.txPower24 !== null) {
+      observations.push(`Current radio power: 2.4 GHz ${device.txPower24 ?? "n/a"} dBm, 5 GHz ${device.txPower5 ?? "n/a"} dBm.`);
+    }
+    if (device.meshRole) {
+      observations.push(`Mesh role: ${device.meshRole}.`);
+    }
+    if (previousDevice && (previousDevice.txPower24 !== device.txPower24 || previousDevice.txPower5 !== device.txPower5)) {
+      recommendations.push(`${device.name} had a radio power change since the previous snapshot.`);
+    }
+  }
+
+  if (device.type === "switch") {
+    if (device.power?.power_draw !== undefined) {
+      observations.push(`PoE draw ${device.power.power_draw}W of ${device.power.max_power}W available, ${device.power.power_reserved}W reserved.`);
+    }
+    if (device.maxTemperature !== null) {
+      observations.push(`Highest reported switch temperature is ${device.maxTemperature}°C.`);
+    }
+    if (device.portSummary?.downPorts > 0) {
+      observations.push(`${device.portSummary.upPorts}/${device.portSummary.totalPorts} data ports are up.`);
+    }
+    if (device.nonOkSensors > 0) {
+      recommendations.push(`${device.name} has ${device.nonOkSensors} environmental sensors reporting a non-ok state.`);
+    }
+    if (device.pendingVersion) {
+      recommendations.push(`${device.name} has a pending firmware version (${device.pendingVersion}).`);
+    }
+    if (device.fwVersionsOutOfSync) {
+      recommendations.push(`${device.name} reports firmware versions out of sync.`);
+    }
+  }
+
+  return { firmware, observations, recommendations };
 }
 
 function summarizeTopDevices(devices) {
-  const byClients = [...devices]
+  return [...devices]
     .sort((left, right) => Number(right.clients || 0) - Number(left.clients || 0))
     .slice(0, 5)
     .map((device) => ({
+      id: device.id,
+      type: device.type,
       name: device.name,
-      clients: device.clients,
-      cpu: device.cpu,
-      memory: device.memory,
+      model: device.model,
+      clients: device.clients || 0,
+      cpu: device.cpu || 0,
+      memory: device.memory || 0,
       status: device.status
     }));
-
-  return byClients;
 }
 
-function computeSiteHealth(site, devices = [], alarmCounts = [], alarmTypes = []) {
-  const online = devices.filter((device) => {
+function computeSiteHealth(site, accessPoints = [], switches = [], alarmCounts = []) {
+  const devices = [...accessPoints, ...switches];
+  const onlineDevices = devices.filter((device) => {
     const status = String(device.status || "").toLowerCase();
     return status.includes("connected") || status.includes("online");
   }).length;
-  const offline = devices.filter((device) => {
+  const offlineDevices = devices.filter((device) => {
     const status = String(device.status || "").toLowerCase();
     return status.includes("offline") || status.includes("disconnected");
   }).length;
+  const warning = alarmCounts
+    .filter((item) => ["warn", "warning", "minor"].includes(String(item.severity || "").toLowerCase()))
+    .reduce((sum, item) => sum + Number(item.count || 0), 0);
+  const critical = alarmCounts
+    .filter((item) => ["critical", "major"].includes(String(item.severity || "").toLowerCase()))
+    .reduce((sum, item) => sum + Number(item.count || 0), 0);
 
-  const warning = severityCount(alarmCounts, ["warn", "warning", "minor"]);
-  const critical = severityCount(alarmCounts, ["critical", "major"]);
-  const indicators = computeDeviceHealthIndicators(devices);
+  const apCount = accessPoints.length;
+  const switchCount = switches.length;
+  const totalClients = devices.reduce((sum, device) => sum + Number(device.clients || 0), 0);
+  const avgCpu = devices.length ? Math.round(devices.reduce((sum, device) => sum + Number(device.cpu || 0), 0) / devices.length) : 0;
+  const avgMemory = devices.length ? Math.round(devices.reduce((sum, device) => sum + Number(device.memory || 0), 0) / devices.length) : 0;
+  const riskFlags = devices.filter((device) => Number(device.clients || 0) >= 25 || Number(device.cpu || 0) >= 80 || Number(device.memory || 0) >= 80).length;
 
   let score = 100;
-  score -= offline * 18;
+  score -= offlineDevices * 16;
   score -= critical * 12;
   score -= warning * 5;
-  score -= indicators.highCpuDevices * 3;
-  score -= indicators.highMemoryDevices * 3;
+  score -= riskFlags * 3;
   score = Math.max(0, Math.min(100, score));
 
   let health = "healthy";
   if (score < 80) {
     health = "degraded";
   }
-  if (score < 55 || critical > 0 || offline > 0) {
+  if (score < 55 || critical > 0 || offlineDevices > 0) {
     health = "critical";
   }
-
-  const totalClients = devices.reduce((sum, device) => sum + Number(device.clients || 0), 0);
-  const avgCpu = devices.length
-    ? Math.round(devices.reduce((sum, device) => sum + Number(device.cpu || 0), 0) / devices.length)
-    : 0;
-  const avgMemory = devices.length
-    ? Math.round(devices.reduce((sum, device) => sum + Number(device.memory || 0), 0) / devices.length)
-    : 0;
 
   return {
     id: site.id,
     name: site.name,
-    sitegroupIds: site.sitegroup_ids || [],
     health,
     score,
     deviceCount: devices.length,
-    onlineDevices: online,
-    offlineDevices: offline,
+    apCount,
+    switchCount,
+    onlineDevices,
+    offlineDevices,
     totalClients,
     avgCpu,
     avgMemory,
-    utilizationRisk: indicators.highCpuDevices + indicators.highMemoryDevices + indicators.busyDevices,
+    riskFlags,
     alarms: {
       warning,
       critical,
-      total: alarmCounts.reduce((sum, item) => sum + Number(item.count || 0), 0),
-      topTypes: alarmTypes.slice(0, 3)
+      total: alarmCounts.reduce((sum, item) => sum + Number(item.count || 0), 0)
     }
   };
 }
@@ -289,118 +544,209 @@ function buildHistorySnapshot(dashboard) {
     sites: dashboard.sites.map((entry) => ({
       id: entry.site.id,
       name: entry.site.name,
-      health: entry.site.health,
       score: entry.site.score,
-      deviceCount: entry.site.deviceCount,
-      onlineDevices: entry.site.onlineDevices,
+      health: entry.site.health,
       offlineDevices: entry.site.offlineDevices,
       totalClients: entry.site.totalClients,
-      warningAlarms: entry.site.alarms.warning,
-      criticalAlarms: entry.site.alarms.critical,
-      avgCpu: entry.site.avgCpu,
-      avgMemory: entry.site.avgMemory
+      devices: [...entry.accessPoints, ...entry.switches].map((device) => ({
+        id: device.id,
+        type: device.type,
+        name: device.name,
+        model: device.model,
+        siteId: entry.site.id,
+        status: device.status,
+        version: device.version,
+        clients: device.clients || 0,
+        cpu: device.cpu || 0,
+        memory: device.memory || 0,
+        uptime: device.uptime || 0,
+        lastSeen: device.lastSeen || null,
+        txPower24: device.txPower24 ?? null,
+        txPower5: device.txPower5 ?? null,
+        poeDraw: device.power?.power_draw ?? null,
+        poeReserved: device.power?.power_reserved ?? null,
+        poeMax: device.power?.max_power ?? null,
+        upPorts: device.portSummary?.upPorts ?? null,
+        downPorts: device.portSummary?.downPorts ?? null
+      }))
     }))
   };
 }
 
-async function getHistory(orgId, siteId) {
+async function getHistory(orgId, filters = {}) {
   const history = await readHistoryFile();
   const filtered = history.filter((entry) => entry.orgId === orgId);
 
-  if (!siteId) {
+  if (!filters.siteId && !filters.deviceId) {
     return filtered;
   }
 
   return filtered
     .map((entry) => {
-      const site = entry.sites.find((item) => item.id === siteId);
+      const site = entry.sites.find((item) => !filters.siteId || item.id === filters.siteId);
       if (!site) {
         return null;
       }
+
+      if (!filters.deviceId) {
+        return {
+          generatedAt: entry.generatedAt,
+          orgId: entry.orgId,
+          site
+        };
+      }
+
+      const siteDevices = Array.isArray(site.devices) ? site.devices : [];
+      const device = siteDevices.find((item) => item.id === filters.deviceId);
+      if (!device) {
+        return null;
+      }
+
       return {
         generatedAt: entry.generatedAt,
         orgId: entry.orgId,
-        site
+        siteId: site.id,
+        siteName: site.name,
+        device
       };
     })
     .filter(Boolean);
 }
 
-async function fetchSiteData(site) {
-  const [deviceStatsResult, alarmCountsResult, alarmTypeCountsResult, alarmsResult] = await Promise.all([
-    mistRequest(`/api/v1/sites/${site.id}/stats/devices`),
-    mistRequest(`/api/v1/sites/${site.id}/alarms/count`, { distinct: "severity", status: "open" }),
-    mistRequest(`/api/v1/sites/${site.id}/alarms/count`, { distinct: "type", status: "open" }),
-    mistRequest(`/api/v1/sites/${site.id}/alarms/search`, { status: "open", limit: 8 })
-  ]);
-
-  const devices = deviceStatsResult.ok && Array.isArray(deviceStatsResult.data)
-    ? deviceStatsResult.data.map(normalizeDevice)
-    : [];
-
-  const alarmCounts = alarmCountsResult.ok && Array.isArray(alarmCountsResult.data?.results)
-    ? alarmCountsResult.data.results
-    : [];
-
-  const alarmTypes = alarmTypeCountsResult.ok && Array.isArray(alarmTypeCountsResult.data?.results)
-    ? alarmTypeCountsResult.data.results
-        .map((item) => ({ type: item.type || item.value || "unknown", count: Number(item.count || 0) }))
-        .sort((left, right) => right.count - left.count)
-    : [];
-
-  const openAlarms = alarmsResult.ok && Array.isArray(alarmsResult.data?.results)
-    ? alarmsResult.data.results
-    : [];
-
-  return {
-    site: computeSiteHealth(site, devices, alarmCounts, alarmTypes),
-    devices,
-    alarms: openAlarms,
-    topDevices: summarizeTopDevices(devices),
-    errors: {
-      devices: deviceStatsResult.ok ? null : deviceStatsResult.error,
-      alarms: alarmsResult.ok ? null : alarmsResult.error,
-      alarmCounts: alarmCountsResult.ok ? null : alarmCountsResult.error
-    }
-  };
+function flattenHistoryDevices(history) {
+  return history.flatMap((entry) =>
+    (Array.isArray(entry.sites) ? entry.sites : []).flatMap((site) =>
+      (Array.isArray(site.devices) ? site.devices : []).map((device) => ({
+        generatedAt: entry.generatedAt,
+        siteId: site.id,
+        siteName: site.name,
+        ...device
+      }))
+    )
+  );
 }
 
 async function fetchDashboard(orgId) {
-  const sitesResult = await mistRequest(`/api/v1/orgs/${orgId}/sites`);
+  const [sitesResult, orgInventoryResult, history] = await Promise.all([
+    mistRequest(`/api/v1/orgs/${orgId}/sites`),
+    mistRequest(`/api/v1/orgs/${orgId}/inventory`),
+    readHistoryFile()
+  ]);
+
   if (!sitesResult.ok) {
     return sitesResult;
   }
+  if (!orgInventoryResult.ok) {
+    return orgInventoryResult;
+  }
 
-  const sites = Array.isArray(sitesResult.data) ? sitesResult.data : [];
-  const siteCards = await Promise.all(sites.map((site) => fetchSiteData(site)));
+  const sites = toArray(sitesResult.data);
+  const orgInventory = toArray(orgInventoryResult.data);
+  const modelVersionIndex = buildModelVersionIndex(orgInventory);
+  const previousDeviceHistory = new Map(flattenHistoryDevices(history).map((item) => [item.id, item]));
+
+  const siteCards = await Promise.all(
+    sites.map(async (site) => {
+      const [siteDevicesResult, apStatsResult, switchStatsResult, alarmCountsResult] = await Promise.all([
+        mistRequest(`/api/v1/sites/${site.id}/devices`),
+        mistRequest(`/api/v1/sites/${site.id}/stats/devices`),
+        mistRequest(`/api/v1/sites/${site.id}/stats/devices`, { type: "switch" }),
+        mistRequest(`/api/v1/sites/${site.id}/alarms/count`, { distinct: "severity", status: "open" })
+      ]);
+
+      const siteInventory = toArray(siteDevicesResult.data);
+      const apStats = toArray(apStatsResult.data);
+      const switchStats = toArray(switchStatsResult.data);
+      const orgDevicesForSite = orgInventory.filter((device) => device.site_id === site.id);
+
+      const apInventoryById = new Map();
+      for (const device of siteInventory.filter((item) => item.type === "ap")) {
+        const orgItem = orgDevicesForSite.find((item) => item.id === device.id);
+        apInventoryById.set(device.id, normalizeApInventory(device, orgItem));
+      }
+
+      for (const orgItem of orgDevicesForSite.filter((item) => item.type === "ap")) {
+        if (!apInventoryById.has(orgItem.id)) {
+          apInventoryById.set(orgItem.id, normalizeApInventory({ id: orgItem.id, site_id: site.id }, orgItem));
+        }
+      }
+
+      const switchInventoryById = new Map(
+        orgDevicesForSite
+          .filter((item) => item.type === "switch")
+          .map((item) => [item.id, normalizeSwitchInventory(item)])
+      );
+
+      const accessPoints = apStats.map((stats) => {
+        const merged = mergeDeviceState(apInventoryById.get(stats.id), normalizeApStats(stats));
+        const previous = previousDeviceHistory.get(merged.id);
+        return {
+          ...merged,
+          insights: buildDeviceInsights(merged, previous, modelVersionIndex)
+        };
+      });
+
+      const switches = switchStats.map((stats) => {
+        const merged = mergeDeviceState(switchInventoryById.get(stats.id), normalizeSwitchStats(stats));
+        const previous = previousDeviceHistory.get(merged.id);
+        return {
+          ...merged,
+          insights: buildDeviceInsights(merged, previous, modelVersionIndex)
+        };
+      });
+
+      const alarmCounts = toArray(alarmCountsResult.data);
+      const allDevices = [...accessPoints, ...switches];
+      const recommendations = allDevices.flatMap((device) => device.insights.recommendations).slice(0, 8);
+
+      return {
+        site: computeSiteHealth(site, accessPoints, switches, alarmCounts),
+        accessPoints,
+        switches,
+        topDevices: summarizeTopDevices(allDevices),
+        recommendations,
+        errors: {
+          siteDevices: siteDevicesResult.ok ? null : siteDevicesResult.error,
+          apStats: apStatsResult.ok ? null : apStatsResult.error,
+          switchStats: switchStatsResult.ok ? null : switchStatsResult.error,
+          alarms: alarmCountsResult.ok ? null : alarmCountsResult.error
+        }
+      };
+    })
+  );
+
   const summary = siteCards.reduce(
     (accumulator, entry) => {
       accumulator.siteCount += 1;
       accumulator.deviceCount += entry.site.deviceCount;
+      accumulator.apCount += entry.site.apCount;
+      accumulator.switchCount += entry.site.switchCount;
       accumulator.onlineDevices += entry.site.onlineDevices;
       accumulator.offlineDevices += entry.site.offlineDevices;
       accumulator.totalClients += entry.site.totalClients;
       accumulator.warningAlarms += entry.site.alarms.warning;
       accumulator.criticalAlarms += entry.site.alarms.critical;
-      accumulator.avgScoreSum += entry.site.score;
-      accumulator.utilizationRisk += entry.site.utilizationRisk;
+      accumulator.healthScoreSum += entry.site.score;
+      accumulator.riskFlags += entry.site.riskFlags;
       return accumulator;
     },
     {
       siteCount: 0,
       deviceCount: 0,
+      apCount: 0,
+      switchCount: 0,
       onlineDevices: 0,
       offlineDevices: 0,
       totalClients: 0,
       warningAlarms: 0,
       criticalAlarms: 0,
-      avgScoreSum: 0,
-      utilizationRisk: 0
+      healthScoreSum: 0,
+      riskFlags: 0
     }
   );
 
-  summary.healthScore = summary.siteCount ? Math.round(summary.avgScoreSum / summary.siteCount) : 0;
-  delete summary.avgScoreSum;
+  summary.healthScore = summary.siteCount ? Math.round(summary.healthScoreSum / summary.siteCount) : 0;
+  delete summary.healthScoreSum;
 
   const dashboard = {
     generatedAt: new Date().toISOString(),
@@ -413,6 +759,36 @@ async function fetchDashboard(orgId) {
   await appendHistorySnapshot(buildHistorySnapshot(dashboard));
 
   return { ok: true, status: 200, data: dashboard };
+}
+
+async function fetchDeviceDetail(siteId, deviceId, orgId) {
+  const dashboardResult = await fetchDashboard(orgId);
+  if (!dashboardResult.ok) {
+    return dashboardResult;
+  }
+
+  const siteEntry = dashboardResult.data.sites.find((entry) => entry.site.id === siteId);
+  if (!siteEntry) {
+    return { ok: false, status: 404, error: "Site not found in dashboard." };
+  }
+
+  const device = [...siteEntry.accessPoints, ...siteEntry.switches].find((item) => item.id === deviceId);
+  if (!device) {
+    return { ok: false, status: 404, error: "Device not found on this site." };
+  }
+
+  const history = await getHistory(orgId, { siteId, deviceId });
+
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      generatedAt: dashboardResult.data.generatedAt,
+      site: siteEntry.site,
+      device,
+      history
+    }
+  };
 }
 
 async function handleApi(res, pathname, searchParams) {
@@ -448,15 +824,17 @@ async function handleApi(res, pathname, searchParams) {
 
   if (pathname === "/api/history") {
     const orgId = searchParams.get("orgId") || DEFAULT_ORG_ID;
+    const siteId = searchParams.get("siteId") || null;
+    const deviceId = searchParams.get("deviceId") || null;
+
     if (!orgId) {
       sendJson(res, 400, { error: "Missing orgId. Provide ?orgId=... or set MIST_ORG_ID." });
       return;
     }
 
     try {
-      const siteId = searchParams.get("siteId");
-      const history = await getHistory(orgId, siteId);
-      sendJson(res, 200, { orgId, siteId, points: history });
+      const history = await getHistory(orgId, { siteId, deviceId });
+      sendJson(res, 200, { orgId, siteId, deviceId, points: history });
     } catch (error) {
       sendJson(res, 500, {
         error: "Unexpected server error while reading history.",
@@ -466,25 +844,22 @@ async function handleApi(res, pathname, searchParams) {
     return;
   }
 
-  if (pathname === "/api/site") {
+  if (pathname === "/api/device") {
+    const orgId = searchParams.get("orgId") || DEFAULT_ORG_ID;
     const siteId = searchParams.get("siteId");
-    if (!siteId) {
-      sendJson(res, 400, { error: "Missing siteId query parameter." });
+    const deviceId = searchParams.get("deviceId");
+
+    if (!orgId || !siteId || !deviceId) {
+      sendJson(res, 400, { error: "Missing orgId, siteId, or deviceId." });
       return;
     }
 
     try {
-      const siteResult = await mistRequest(`/api/v1/sites/${siteId}`);
-      if (!siteResult.ok) {
-        sendJson(res, siteResult.status, siteResult);
-        return;
-      }
-
-      const siteDetails = await fetchSiteData(siteResult.data);
-      sendJson(res, 200, { siteMeta: siteResult.data, ...siteDetails });
+      const result = await fetchDeviceDetail(siteId, deviceId, orgId);
+      sendJson(res, result.status, result.ok ? result.data : result);
     } catch (error) {
       sendJson(res, 500, {
-        error: "Unexpected server error while loading site details.",
+        error: "Unexpected server error while loading device details.",
         details: error instanceof Error ? error.message : String(error)
       });
     }
