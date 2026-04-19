@@ -1,0 +1,64 @@
+[
+  {
+    "generatedAt": "2026-04-19T00:24:24.538Z",
+    "orgId": "51d2486e-8291-450b-ade8-372aaad700ec",
+    "summary": {
+      "siteCount": 1,
+      "deviceCount": 3,
+      "onlineDevices": 3,
+      "offlineDevices": 0,
+      "totalClients": 10,
+      "warningAlarms": 0,
+      "criticalAlarms": 0,
+      "utilizationRisk": 0,
+      "healthScore": 100
+    },
+    "sites": [
+      {
+        "id": "099b47eb-b6f4-4c53-9b46-261987b7afe8",
+        "name": "Sal’s Home",
+        "health": "healthy",
+        "score": 100,
+        "deviceCount": 3,
+        "onlineDevices": 3,
+        "offlineDevices": 0,
+        "totalClients": 10,
+        "warningAlarms": 0,
+        "criticalAlarms": 0,
+        "avgCpu": 0,
+        "avgMemory": 0
+      }
+    ]
+  },
+  {
+    "generatedAt": "2026-04-19T00:25:14.213Z",
+    "orgId": "51d2486e-8291-450b-ade8-372aaad700ec",
+    "summary": {
+      "siteCount": 1,
+      "deviceCount": 3,
+      "onlineDevices": 3,
+      "offlineDevices": 0,
+      "totalClients": 10,
+      "warningAlarms": 0,
+      "criticalAlarms": 0,
+      "utilizationRisk": 0,
+      "healthScore": 100
+    },
+    "sites": [
+      {
+        "id": "099b47eb-b6f4-4c53-9b46-261987b7afe8",
+        "name": "Sal’s Home",
+        "health": "healthy",
+        "score": 100,
+        "deviceCount": 3,
+        "onlineDevices": 3,
+        "offlineDevices": 0,
+        "totalClients": 10,
+        "warningAlarms": 0,
+        "criticalAlarms": 0,
+        "avgCpu": 0,
+        "avgMemory": 0
+      }
+    ]
+  }
+]
