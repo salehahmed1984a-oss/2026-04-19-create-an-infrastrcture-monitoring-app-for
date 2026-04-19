@@ -26,11 +26,55 @@ const elements = {
   healthChart: document.querySelector("#health-chart"),
   offlineChart: document.querySelector("#offline-chart"),
   sitesGrid: document.querySelector("#sites-grid"),
+  dashboardView: document.querySelector("#dashboard-view"),
+  siteView: document.querySelector("#site-view"),
+  deviceView: document.querySelector("#device-view"),
   siteDetail: document.querySelector("#site-detail"),
   siteDetailTitle: document.querySelector("#site-detail-title"),
   deviceDetail: document.querySelector("#device-detail"),
-  deviceDetailTitle: document.querySelector("#device-detail-title")
+  deviceDetailTitle: document.querySelector("#device-detail-title"),
+  backToDashboard: document.querySelector("#back-to-dashboard"),
+  backToSite: document.querySelector("#back-to-site")
 };
+
+function getRoute() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    orgId: params.get("orgId") || "",
+    siteId: params.get("siteId") || "",
+    deviceId: params.get("deviceId") || ""
+  };
+}
+
+function setRoute(route, replace = false) {
+  const params = new URLSearchParams();
+  if (route.orgId) {
+    params.set("orgId", route.orgId);
+  }
+  if (route.siteId) {
+    params.set("siteId", route.siteId);
+  }
+  if (route.deviceId) {
+    params.set("deviceId", route.deviceId);
+  }
+  const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+  if (replace) {
+    window.history.replaceState({}, "", nextUrl);
+  } else {
+    window.history.pushState({}, "", nextUrl);
+  }
+}
+
+function renderRouteView() {
+  const route = getRoute();
+  const showDashboard = !route.siteId;
+  const showSite = Boolean(route.siteId) && !route.deviceId;
+  const showDevice = Boolean(route.siteId && route.deviceId);
+
+  elements.dashboardView.classList.toggle("hidden", !showDashboard);
+  elements.siteView.classList.toggle("hidden", !showSite);
+  elements.deviceView.classList.toggle("hidden", !showDevice);
+}
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(Number(value || 0));
@@ -218,9 +262,10 @@ function renderSites(sites) {
     card.addEventListener("click", async () => {
       state.selectedSiteId = entry.site.id;
       state.selectedDeviceId = entry.accessPoints[0]?.id || entry.switches[0]?.id || null;
+      setRoute({ orgId: state.dashboard.orgId, siteId: state.selectedSiteId });
       renderSites(state.dashboard.sites);
+      renderRouteView();
       renderSelectedSite();
-      await renderSelectedDevice();
     });
 
     elements.sitesGrid.append(card);
@@ -268,7 +313,9 @@ function attachDeviceRowHandlers() {
   document.querySelectorAll("[data-device-id]").forEach((element) => {
     element.addEventListener("click", async () => {
       state.selectedDeviceId = element.getAttribute("data-device-id");
+      setRoute({ orgId: state.dashboard.orgId, siteId: state.selectedSiteId, deviceId: state.selectedDeviceId });
       renderSelectedSite();
+      renderRouteView();
       await renderSelectedDevice();
     });
   });
@@ -489,22 +536,32 @@ async function loadDashboard(orgId, options = {}) {
   }
 
   state.dashboard = payload;
+  const route = getRoute();
   if (!preserveSelection || !payload.sites.some((entry) => entry.site.id === state.selectedSiteId)) {
-    state.selectedSiteId = payload.sites[0]?.site.id || null;
+    state.selectedSiteId = route.siteId && payload.sites.some((entry) => entry.site.id === route.siteId)
+      ? route.siteId
+      : payload.sites[0]?.site.id || null;
   }
 
   const selectedSite = payload.sites.find((entry) => entry.site.id === state.selectedSiteId);
   const selectedDeviceStillExists = selectedSite && [...selectedSite.accessPoints, ...selectedSite.switches].some((device) => device.id === state.selectedDeviceId);
   if (!preserveSelection || !selectedDeviceStillExists) {
-    state.selectedDeviceId = selectedSite?.accessPoints[0]?.id || selectedSite?.switches[0]?.id || null;
+    state.selectedDeviceId = route.deviceId && selectedSite && [...selectedSite.accessPoints, ...selectedSite.switches].some((device) => device.id === route.deviceId)
+      ? route.deviceId
+      : selectedSite?.accessPoints[0]?.id || selectedSite?.switches[0]?.id || null;
   }
 
   elements.generatedAt.textContent = `Updated ${formatDate(payload.generatedAt)}`;
   renderSummary(payload.summary);
   renderSites(payload.sites);
   await loadHistory(orgId);
-  renderSelectedSite();
-  await renderSelectedDevice();
+  renderRouteView();
+  if (getRoute().siteId) {
+    renderSelectedSite();
+  }
+  if (getRoute().deviceId) {
+    await renderSelectedDevice();
+  }
 
   if (!silent) {
     clearMessage();
@@ -521,6 +578,7 @@ elements.configForm.addEventListener("submit", async (event) => {
 
   try {
     await loadDashboard(orgId);
+    setRoute({ orgId }, true);
   } catch (error) {
     showMessage(error instanceof Error ? error.message : String(error), "error");
   }
@@ -528,6 +586,33 @@ elements.configForm.addEventListener("submit", async (event) => {
 
 elements.refreshInterval.addEventListener("change", () => {
   scheduleRefresh();
+});
+
+elements.backToDashboard.addEventListener("click", () => {
+  state.selectedDeviceId = null;
+  setRoute({ orgId: state.dashboard?.orgId || "" });
+  renderRouteView();
+});
+
+elements.backToSite.addEventListener("click", () => {
+  setRoute({ orgId: state.dashboard?.orgId || "", siteId: state.selectedSiteId || "" });
+  renderRouteView();
+  renderSelectedSite();
+});
+
+window.addEventListener("popstate", async () => {
+  renderRouteView();
+  if (state.dashboard) {
+    const route = getRoute();
+    state.selectedSiteId = route.siteId || state.selectedSiteId;
+    state.selectedDeviceId = route.deviceId || null;
+    if (route.siteId) {
+      renderSelectedSite();
+    }
+    if (route.deviceId) {
+      await renderSelectedDevice();
+    }
+  }
 });
 
 async function boot() {
@@ -541,7 +626,8 @@ async function boot() {
     }
 
     if (config.defaultOrgId) {
-      await loadDashboard(config.defaultOrgId);
+      const route = getRoute();
+      await loadDashboard(route.orgId || config.defaultOrgId);
       return;
     }
 

@@ -76,6 +76,7 @@
 
         <section id="message" class="message hidden"></section>
 
+        <section id="dashboard-view">
         <section class="stats-grid">
           <article class="stat-card">
             <span class="stat-label">Health Score</span>
@@ -145,25 +146,28 @@
           </div>
           <div id="sites-grid" class="sites-grid"></div>
         </section>
+        </section>
 
-        <section class="panel">
+        <section id="site-view" class="panel hidden">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Site Intelligence</p>
               <h3 id="site-detail-title">Select a site card</h3>
             </div>
+            <button id="back-to-dashboard" type="button" class="ghost-button">Back to Dashboard</button>
           </div>
           <div id="site-detail" class="detail-empty">
             Site recommendations, APs, and switches will appear here after you choose a site.
           </div>
         </section>
 
-        <section class="panel">
+        <section id="device-view" class="panel hidden">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Device Drilldown</p>
               <h3 id="device-detail-title">Select an AP or switch</h3>
             </div>
+            <button id="back-to-site" type="button" class="ghost-button">Back to Site</button>
           </div>
           <div id="device-detail" class="detail-empty">
             Click an AP or switch row to open interactive device diagnostics.
