@@ -3,6 +3,7 @@ const state = {
   selectedSiteId: null,
   selectedDeviceId: null,
   history: [],
+  selectedTrend: null,
   refreshTimer: null
 };
 
@@ -28,12 +29,16 @@ const elements = {
   sitesGrid: document.querySelector("#sites-grid"),
   dashboardView: document.querySelector("#dashboard-view"),
   siteView: document.querySelector("#site-view"),
+  trendView: document.querySelector("#trend-view"),
   deviceView: document.querySelector("#device-view"),
   siteDetail: document.querySelector("#site-detail"),
   siteDetailTitle: document.querySelector("#site-detail-title"),
+  trendDetail: document.querySelector("#trend-detail"),
+  trendDetailTitle: document.querySelector("#trend-detail-title"),
   deviceDetail: document.querySelector("#device-detail"),
   deviceDetailTitle: document.querySelector("#device-detail-title"),
   backToDashboard: document.querySelector("#back-to-dashboard"),
+  backToDashboardFromTrend: document.querySelector("#back-to-dashboard-from-trend"),
   backToSite: document.querySelector("#back-to-site")
 };
 
@@ -42,7 +47,8 @@ function getRoute() {
   return {
     orgId: params.get("orgId") || "",
     siteId: params.get("siteId") || "",
-    deviceId: params.get("deviceId") || ""
+    deviceId: params.get("deviceId") || "",
+    trend: params.get("trend") || ""
   };
 }
 
@@ -57,6 +63,9 @@ function setRoute(route, replace = false) {
   if (route.deviceId) {
     params.set("deviceId", route.deviceId);
   }
+  if (route.trend) {
+    params.set("trend", route.trend);
+  }
   const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
   if (replace) {
     window.history.replaceState({}, "", nextUrl);
@@ -67,12 +76,14 @@ function setRoute(route, replace = false) {
 
 function renderRouteView() {
   const route = getRoute();
-  const showDashboard = !route.siteId;
+  const showDashboard = !route.siteId && !route.deviceId && !route.trend;
   const showSite = Boolean(route.siteId) && !route.deviceId;
+  const showTrend = Boolean(route.trend) && !route.siteId && !route.deviceId;
   const showDevice = Boolean(route.siteId && route.deviceId);
 
   elements.dashboardView.classList.toggle("hidden", !showDashboard);
   elements.siteView.classList.toggle("hidden", !showSite);
+  elements.trendView.classList.toggle("hidden", !showTrend);
   elements.deviceView.classList.toggle("hidden", !showDevice);
 }
 
@@ -156,6 +167,43 @@ function renderSummary(summary) {
   elements.summaryRisk.textContent = formatNumber(summary.riskFlags);
 }
 
+function renderScoreBreakdown(site) {
+  const items = [
+    { label: "Current score", value: `${formatNumber(site.score)}%` },
+    { label: "Warning alarms", value: formatNumber(site.alarms?.warning || 0) },
+    { label: "Critical alarms", value: formatNumber(site.alarms?.critical || 0) },
+    { label: "Risk flags", value: formatNumber(site.riskFlags || 0) },
+    { label: "Offline devices", value: formatNumber(site.offlineDevices || 0) }
+  ];
+
+  const penalties = Array.isArray(site.scoreBreakdown) ? site.scoreBreakdown : [];
+  const penaltyMarkup = penalties.length
+    ? penalties.map((item) => `
+      <div class="breakdown-card">
+        <span class="breakdown-label">${escapeHtml(item.label)}</span>
+        <strong>-${formatNumber(item.amount)}</strong>
+      </div>
+    `).join("")
+    : `
+      <div class="breakdown-card">
+        <span class="breakdown-label">No deductions</span>
+        <strong>100%</strong>
+      </div>
+    `;
+
+  const metricMarkup = items.map((item) => `
+    <div class="breakdown-card">
+      <span class="breakdown-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+    </div>
+  `).join("");
+
+  return `
+    <div class="breakdown-grid">${metricMarkup}</div>
+    <div class="breakdown-grid top-space">${penaltyMarkup}</div>
+  `;
+}
+
 function scheduleRefresh() {
   if (state.refreshTimer) {
     clearInterval(state.refreshTimer);
@@ -215,6 +263,21 @@ function renderChart(svgElement, points, valueAccessor, stroke, maxValueOverride
   `;
 }
 
+function openTrend(trend) {
+  state.selectedTrend = trend;
+  setRoute({ orgId: state.dashboard?.orgId || "", trend });
+  renderRouteView();
+  renderTrendDetail();
+}
+
+function attachTrendHandlers() {
+  document.querySelectorAll("[data-trend]").forEach((element) => {
+    element.addEventListener("click", () => {
+      openTrend(element.getAttribute("data-trend"));
+    });
+  });
+}
+
 async function loadHistory(orgId) {
   const response = await fetch(`/api/history?orgId=${encodeURIComponent(orgId)}`);
   const payload = await response.json();
@@ -226,6 +289,7 @@ async function loadHistory(orgId) {
   elements.historyPoints.textContent = `${state.history.length} snapshot${state.history.length === 1 ? "" : "s"}`;
   renderChart(elements.healthChart, state.history, (point) => point.summary.healthScore, "#74d8ff", 100);
   renderChart(elements.offlineChart, state.history, (point) => point.summary.offlineDevices, "#ff6d6d");
+  attachTrendHandlers();
 }
 
 function renderSites(sites) {
@@ -524,6 +588,9 @@ function renderSelectedSite() {
     ? `<div class="message error">Partial data warning: ${escapeHtml(errorNotes.join(" | "))}</div>`
     : "";
   const clientBehavior = selected.clientBehavior || {};
+  const scoreExplanation = selected.site.scoreBreakdown?.length
+    ? `This score is lower because of ${selected.site.scoreBreakdown.map((item) => `${item.label.toLowerCase()} (-${formatNumber(item.amount)})`).join(", ")}.`
+    : "No active deductions are applied to this score right now.";
 
   elements.siteDetail.innerHTML = `
     ${errorMarkup}
@@ -539,6 +606,12 @@ function renderSelectedSite() {
         <div class="metric-list">${topDevicesMarkup}</div>
       </section>
     </div>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Health Logic</p>
+      <h4>Why This Site Scores ${formatNumber(selected.site.score)}%</h4>
+      <p class="card-note">${escapeHtml(scoreExplanation)}</p>
+      ${renderScoreBreakdown(selected.site)}
+    </section>
     <div class="detail-grid secondary">
       <section class="detail-section">
         <p class="eyebrow">Client Behavior</p>
@@ -582,6 +655,118 @@ function renderSelectedSite() {
   `;
 
   attachDeviceRowHandlers();
+}
+
+function renderTrendDetail() {
+  const trend = getRoute().trend || state.selectedTrend;
+  const points = state.history || [];
+  const isHealth = trend === "health";
+  const title = isHealth ? "Health Score History" : "Offline Device History";
+  const latestSummary = state.dashboard?.summary || {};
+  const rows = points
+    .slice()
+    .reverse()
+    .slice(0, 20)
+    .map((point) => `
+      <tr>
+        <td>${escapeHtml(formatDate(point.generatedAt))}</td>
+        <td>${formatNumber(point.summary?.healthScore || 0)}%</td>
+        <td>${formatNumber(point.summary?.offlineDevices || 0)}</td>
+        <td>${formatNumber(point.summary?.warningAlarms || 0)}</td>
+        <td>${formatNumber(point.summary?.criticalAlarms || 0)}</td>
+      </tr>
+    `)
+    .join("");
+
+  elements.trendDetailTitle.textContent = title;
+
+  if (!points.length) {
+    elements.trendDetail.className = "detail-empty";
+    elements.trendDetail.textContent = "Trend history will appear after the dashboard has refreshed a few times.";
+    return;
+  }
+
+  elements.trendDetail.className = "";
+  elements.trendDetail.innerHTML = `
+    <div class="detail-grid">
+      <section class="detail-section">
+        <p class="eyebrow">Trend Chart</p>
+        <h4>${escapeHtml(title)}</h4>
+        <svg id="trend-detail-chart" class="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">Current Snapshot</p>
+        <h4>${isHealth ? "Why the score is not 100%" : "What is driving offline count"}</h4>
+        ${
+          isHealth
+            ? `
+              <p class="card-note">The organization score is an average of site scores. A site can be below 100% without being in a critical state if warnings or softer risk flags are present.</p>
+              <div class="breakdown-grid">
+                <div class="breakdown-card"><span class="breakdown-label">Org health score</span><strong>${formatNumber(latestSummary.healthScore || 0)}%</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Warnings</span><strong>${formatNumber(latestSummary.warningAlarms || 0)}</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Critical alarms</span><strong>${formatNumber(latestSummary.criticalAlarms || 0)}</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Risk flags</span><strong>${formatNumber(latestSummary.riskFlags || 0)}</strong></div>
+              </div>
+            `
+            : `
+              <div class="breakdown-grid">
+                <div class="breakdown-card"><span class="breakdown-label">Offline devices</span><strong>${formatNumber(latestSummary.offlineDevices || 0)}</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Devices total</span><strong>${formatNumber(latestSummary.deviceCount || 0)}</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Access points</span><strong>${formatNumber(latestSummary.apCount || 0)}</strong></div>
+                <div class="breakdown-card"><span class="breakdown-label">Switches</span><strong>${formatNumber(latestSummary.switchCount || 0)}</strong></div>
+              </div>
+            `
+        }
+      </section>
+    </div>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Recent History</p>
+      <h4>Snapshot Table</h4>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Health</th>
+            <th>Offline</th>
+            <th>Warnings</th>
+            <th>Critical</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>
+    ${
+      isHealth && state.dashboard?.sites?.length
+        ? `
+          <section class="detail-section top-space">
+            <p class="eyebrow">Site Breakdown</p>
+            <h4>Current Site Score Drivers</h4>
+            <div class="analysis-grid">
+              ${state.dashboard.sites.map((entry) => `
+                <article class="analysis-card">
+                  <strong>${escapeHtml(entry.site.name)}: ${formatNumber(entry.site.score)}%</strong>
+                  <p>${escapeHtml(
+                    entry.site.scoreBreakdown?.length
+                      ? entry.site.scoreBreakdown.map((item) => `${item.label} (-${formatNumber(item.amount)})`).join(", ")
+                      : "No deductions currently applied."
+                  )}</p>
+                </article>
+              `).join("")}
+            </div>
+          </section>
+        `
+        : ""
+    }
+  `;
+
+  const detailChart = document.querySelector("#trend-detail-chart");
+  renderChart(
+    detailChart,
+    points,
+    (point) => (isHealth ? point.summary?.healthScore : point.summary?.offlineDevices),
+    isHealth ? "#74d8ff" : "#ff6d6d",
+    isHealth ? 100 : null
+  );
 }
 
 function renderHistorySummaryChart(points) {
@@ -772,10 +957,14 @@ async function loadDashboard(orgId, options = {}) {
   }
 
   elements.generatedAt.textContent = `Updated ${formatDate(payload.generatedAt)}`;
+  state.selectedTrend = route.trend || null;
   renderSummary(payload.summary);
   renderSites(payload.sites);
   await loadHistory(orgId);
   renderRouteView();
+  if (getRoute().trend) {
+    renderTrendDetail();
+  }
   if (getRoute().siteId) {
     renderSelectedSite();
   }
@@ -814,6 +1003,12 @@ elements.backToDashboard.addEventListener("click", () => {
   renderRouteView();
 });
 
+elements.backToDashboardFromTrend.addEventListener("click", () => {
+  state.selectedTrend = null;
+  setRoute({ orgId: state.dashboard?.orgId || "" });
+  renderRouteView();
+});
+
 elements.backToSite.addEventListener("click", () => {
   setRoute({ orgId: state.dashboard?.orgId || "", siteId: state.selectedSiteId || "" });
   renderRouteView();
@@ -826,6 +1021,10 @@ window.addEventListener("popstate", async () => {
     const route = getRoute();
     state.selectedSiteId = route.siteId || state.selectedSiteId;
     state.selectedDeviceId = route.deviceId || null;
+    state.selectedTrend = route.trend || null;
+    if (route.trend) {
+      renderTrendDetail();
+    }
     if (route.siteId) {
       renderSelectedSite();
     }

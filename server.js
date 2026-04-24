@@ -673,10 +673,24 @@ function computeSiteHealth(site, accessPoints = [], switches = [], alarmCounts =
   const riskFlags = devices.filter((device) => Number(device.clients || 0) >= 25 || Number(device.cpu || 0) >= 80 || Number(device.memory || 0) >= 80).length;
 
   let score = 100;
-  score -= offlineDevices * 16;
-  score -= critical * 12;
-  score -= warning * 5;
-  score -= riskFlags * 3;
+  const scoreBreakdown = [];
+
+  if (offlineDevices > 0) {
+    score -= offlineDevices * 16;
+    scoreBreakdown.push({ label: "Offline devices", amount: offlineDevices * 16 });
+  }
+  if (critical > 0) {
+    score -= critical * 12;
+    scoreBreakdown.push({ label: "Critical alarms", amount: critical * 12 });
+  }
+  if (warning > 0) {
+    score -= warning * 5;
+    scoreBreakdown.push({ label: "Warning alarms", amount: warning * 5 });
+  }
+  if (riskFlags > 0) {
+    score -= riskFlags * 3;
+    scoreBreakdown.push({ label: "Risk flags", amount: riskFlags * 3 });
+  }
   score = Math.max(0, Math.min(100, score));
 
   let health = "healthy";
@@ -701,6 +715,7 @@ function computeSiteHealth(site, accessPoints = [], switches = [], alarmCounts =
     avgCpu,
     avgMemory,
     riskFlags,
+    scoreBreakdown,
     alarms: {
       warning,
       critical,
@@ -897,6 +912,7 @@ async function fetchDashboard(orgId) {
       });
 
       const alarmCounts = toArray(alarmCountsResult.data);
+      const siteHealth = computeSiteHealth(site, accessPoints, switches, alarmCounts);
       const allDevices = [...accessPoints, ...switches];
       const recommendations = allDevices.flatMap((device) => device.insights.recommendations).slice(0, 8);
       const configChanges = allDevices.flatMap((device) => device.insights.configChanges || []).slice(0, 8);
@@ -904,7 +920,7 @@ async function fetchDashboard(orgId) {
       const audit = buildSecurityAndSixGhzAudit(site, accessPoints, switches);
 
       return {
-        site: computeSiteHealth(site, accessPoints, switches, alarmCounts),
+        site: siteHealth,
         accessPoints,
         switches,
         topDevices: summarizeTopDevices(allDevices),
@@ -912,6 +928,10 @@ async function fetchDashboard(orgId) {
         configChanges: [...new Set([...configChanges, ...audit.configChanges])].slice(0, 12),
         audit: audit.items,
         clientBehavior,
+        trendContext: {
+          healthScore: siteHealth.score,
+          offlineDevices: siteHealth.offlineDevices
+        },
         errors: {
           siteDevices: siteDevicesResult.ok ? null : siteDevicesResult.error,
           apStats: apStatsResult.ok ? null : apStatsResult.error,

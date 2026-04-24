@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPE Mist Infrastructure Monitor</title>
-    <link rel="stylesheet" href="/styles.css?v=20260424c" />
+    <link rel="stylesheet" href="/styles.css?v=20260424d" />
   </head>
   <body>
     <div class="app-shell">
@@ -120,20 +120,22 @@
             </div>
           </div>
           <div class="chart-grid">
-            <div class="chart-card">
+            <button type="button" class="chart-card trend-card" data-trend="health">
               <div class="chart-header">
                 <strong>Health Score</strong>
-                <span class="muted" id="history-points">No history yet</span>
+                <span class="muted">Click to deep dive</span>
               </div>
               <svg id="health-chart" class="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
-            </div>
-            <div class="chart-card">
+              <p class="chart-note" id="history-points">No history yet</p>
+            </button>
+            <button type="button" class="chart-card trend-card" data-trend="offline">
               <div class="chart-header">
                 <strong>Offline Devices</strong>
-                <span class="muted">Recent snapshots</span>
+                <span class="muted">Click to deep dive</span>
               </div>
               <svg id="offline-chart" class="chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
-            </div>
+              <p class="chart-note">Recent snapshots</p>
+            </button>
           </div>
         </section>
 
@@ -161,6 +163,19 @@
           </div>
         </section>
 
+        <section id="trend-view" class="panel hidden">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Trend Drilldown</p>
+              <h3 id="trend-detail-title">Trend Detail</h3>
+            </div>
+            <button id="back-to-dashboard-from-trend" type="button" class="ghost-button">Back to Dashboard</button>
+          </div>
+          <div id="trend-detail" class="detail-empty">
+            Click a trend card to open historical detail.
+          </div>
+        </section>
+
         <section id="device-view" class="panel hidden">
           <div class="panel-header">
             <div>
@@ -176,6 +191,6 @@
       </main>
     </div>
 
-    <script type="module" src="/app.js?v=20260424c"></script>
+    <script type="module" src="/app.js?v=20260424d"></script>
   </body>
 </html>
