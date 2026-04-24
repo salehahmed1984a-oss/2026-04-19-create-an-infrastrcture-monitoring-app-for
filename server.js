@@ -211,6 +211,109 @@ function pickNewestVersion(versions = []) {
     .at(-1) || null;
 }
 
+function normalizeAlarmSeverity(value) {
+  const severity = String(value || "").toLowerCase();
+  if (["critical", "major"].includes(severity)) {
+    return "critical";
+  }
+  if (["warn", "warning", "minor"].includes(severity)) {
+    return "warning";
+  }
+  return severity || "unknown";
+}
+
+function normalizeAlarmType(item = {}) {
+  return item.type || item.alarm_type || item.topic || item.name || item._id || "Unclassified alarm";
+}
+
+function buildAlarmRemediation(type, severity) {
+  const label = String(type || "").toLowerCase();
+
+  if (label.includes("power") || label.includes("poe")) {
+    return [
+      "Open the affected switch or AP in Mist and confirm the powered device and current power budget.",
+      "Check whether PoE reservation, power draw, or uplink power source has changed unexpectedly.",
+      "Verify cabling, injector or switch PoE class, and available power headroom.",
+      "After the fix, confirm the alarm clears and the device stays stable across the next refreshes."
+    ];
+  }
+
+  if (label.includes("firmware") || label.includes("upgrade") || label.includes("version")) {
+    return [
+      "Open the device or site firmware page in Mist and compare the running version with the recommended target.",
+      "Review any pending version or failed upgrade state before changing settings.",
+      "Schedule the upgrade in a maintenance window and validate rollback readiness.",
+      "After upgrading, confirm the alarm clears and client behavior stays healthy."
+    ];
+  }
+
+  if (label.includes("cpu") || label.includes("memory") || label.includes("resource")) {
+    return [
+      "Open the affected device and review CPU and memory trends over time.",
+      "Check whether client load, packet storms, or repeated retries coincide with the spike.",
+      "Reduce local pressure by redistributing clients or reviewing attached switch ports and uplinks.",
+      "If the issue persists, review firmware and vendor advisories for that model."
+    ];
+  }
+
+  if (label.includes("offline") || label.includes("disconnect") || label.includes("unreachable")) {
+    return [
+      "Open the affected device in Mist and confirm when it was last seen.",
+      "Check switch uplinks, port state, PoE delivery, and WAN reachability for that location.",
+      "Confirm the device came back cleanly and did not flap repeatedly.",
+      "After recovery, watch the next refreshes to ensure the alarm does not reopen."
+    ];
+  }
+
+  if (label.includes("client") || label.includes("roam") || label.includes("coverage") || label.includes("rf")) {
+    return [
+      "Review client experience, roam behavior, and AP load in the affected site.",
+      "Check whether 2.4 GHz power is too high or whether one AP is carrying disproportionate load.",
+      "Adjust RF settings gradually or add nearby capacity if the issue is persistent.",
+      "Validate improvement by watching client counts, retries, and site health after the change."
+    ];
+  }
+
+  return [
+    "Open the alarm detail in Mist and confirm which device or service triggered it.",
+    "Check whether the condition is still active or was already addressed recently.",
+    "Review the related device, site, or WLAN configuration for drift or recent changes.",
+    "After making the fix, verify the alarm clears and the health score improves."
+  ];
+}
+
+function summarizeOpenAlarms(openAlarms = []) {
+  const grouped = new Map();
+
+  for (const alarm of openAlarms) {
+    const type = normalizeAlarmType(alarm);
+    const severity = normalizeAlarmSeverity(alarm.severity);
+    const key = `${severity}:${type}`;
+    const existing = grouped.get(key) || {
+      title: type,
+      severity,
+      count: 0,
+      examples: []
+    };
+    existing.count += 1;
+    const source = alarm.device_name || alarm.host || alarm.mac || alarm.site_name || alarm.id || null;
+    if (source && existing.examples.length < 3) {
+      existing.examples.push(source);
+    }
+    grouped.set(key, existing);
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) => {
+      const severityOrder = { critical: 0, warning: 1, unknown: 2 };
+      return (severityOrder[left.severity] ?? 3) - (severityOrder[right.severity] ?? 3) || right.count - left.count;
+    })
+    .map((item) => ({
+      ...item,
+      remediation: buildAlarmRemediation(item.title, item.severity)
+    }));
+}
+
 function normalizeApInventory(device, orgInventoryItem = null) {
   return {
     id: device.id || orgInventoryItem?.id,
@@ -719,7 +822,8 @@ function computeSiteHealth(site, accessPoints = [], switches = [], alarmCounts =
     alarms: {
       warning,
       critical,
-      total: alarmCounts.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      total: alarmCounts.reduce((sum, item) => sum + Number(item.count || 0), 0),
+      findings: []
     }
   };
 }
@@ -863,11 +967,12 @@ async function fetchDashboard(orgId) {
 
   const siteCards = await Promise.all(
     sites.map(async (site) => {
-      const [siteDevicesResult, apStatsResult, switchStatsResult, alarmCountsResult] = await Promise.all([
+      const [siteDevicesResult, apStatsResult, switchStatsResult, alarmCountsResult, openAlarmsResult] = await Promise.all([
         mistRequest(`/api/v1/sites/${site.id}/devices`),
         mistRequest(`/api/v1/sites/${site.id}/stats/devices`),
         mistRequest(`/api/v1/sites/${site.id}/stats/devices`, { type: "switch" }),
-        mistRequest(`/api/v1/sites/${site.id}/alarms/count`, { distinct: "severity", status: "open" })
+        mistRequest(`/api/v1/sites/${site.id}/alarms/count`, { distinct: "severity", status: "open" }),
+        mistRequest(`/api/v1/sites/${site.id}/alarms/search`, { status: "open", limit: 50 })
       ]);
 
       const siteInventory = toArray(siteDevicesResult.data);
@@ -913,6 +1018,8 @@ async function fetchDashboard(orgId) {
 
       const alarmCounts = toArray(alarmCountsResult.data);
       const siteHealth = computeSiteHealth(site, accessPoints, switches, alarmCounts);
+      const openAlarms = toArray(openAlarmsResult.data);
+      siteHealth.alarms.findings = summarizeOpenAlarms(openAlarms);
       const allDevices = [...accessPoints, ...switches];
       const recommendations = allDevices.flatMap((device) => device.insights.recommendations).slice(0, 8);
       const configChanges = allDevices.flatMap((device) => device.insights.configChanges || []).slice(0, 8);
@@ -936,7 +1043,8 @@ async function fetchDashboard(orgId) {
           siteDevices: siteDevicesResult.ok ? null : siteDevicesResult.error,
           apStats: apStatsResult.ok ? null : apStatsResult.error,
           switchStats: switchStatsResult.ok ? null : switchStatsResult.error,
-          alarms: alarmCountsResult.ok ? null : alarmCountsResult.error
+          alarms: alarmCountsResult.ok ? null : alarmCountsResult.error,
+          openAlarms: openAlarmsResult.ok ? null : openAlarmsResult.error
         }
       };
     })

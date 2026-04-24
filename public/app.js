@@ -506,6 +506,25 @@ function renderAuditCards(items) {
     .join("");
 }
 
+function renderAlarmFindings(items) {
+  if (!items.length) {
+    return `<div class="empty-callout">No open alarm details were returned for this site at the moment.</div>`;
+  }
+
+  return items
+    .map((item) => `
+      <article class="analysis-card ${escapeHtml(item.severity === "warning" ? "watch" : item.severity)}">
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(`${item.count} open ${item.severity} alarm${item.count === 1 ? "" : "s"}`)}</p>
+        ${item.examples?.length ? `<p>Affected: ${escapeHtml(item.examples.join(", "))}</p>` : ""}
+        <ol class="guide-list">
+          ${(item.remediation || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+        </ol>
+      </article>
+    `)
+    .join("");
+}
+
 function renderAdvisoryCards(items) {
   if (!items.length) {
     return `<div class="empty-callout">No firmware advisories are currently mapped for this model and version in the local advisory file.</div>`;
@@ -611,6 +630,11 @@ function renderSelectedSite() {
       <h4>Why This Site Scores ${formatNumber(selected.site.score)}%</h4>
       <p class="card-note">${escapeHtml(scoreExplanation)}</p>
       ${renderScoreBreakdown(selected.site)}
+    </section>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Warnings</p>
+      <h4>Open Alarm Types And Remediation</h4>
+      <div class="analysis-grid">${renderAlarmFindings(selected.site.alarms?.findings || [])}</div>
     </section>
     <div class="detail-grid secondary">
       <section class="detail-section">
@@ -719,6 +743,45 @@ function renderTrendDetail() {
         }
       </section>
     </div>
+    ${
+      isHealth
+        ? `
+          <section class="detail-section top-space">
+            <p class="eyebrow">Warnings</p>
+            <h4>Current Open Alarm Categories</h4>
+            <div class="analysis-grid">
+              ${
+                state.dashboard?.sites?.flatMap((entry) =>
+                  (entry.site.alarms?.findings || []).map((item) => ({
+                    ...item,
+                    siteName: entry.site.name
+                  }))
+                ).length
+                  ? state.dashboard.sites
+                      .flatMap((entry) =>
+                        (entry.site.alarms?.findings || []).map((item) => ({
+                          ...item,
+                          siteName: entry.site.name
+                        }))
+                      )
+                      .slice(0, 10)
+                      .map((item) => `
+                        <article class="analysis-card ${escapeHtml(item.severity === "warning" ? "watch" : item.severity)}">
+                          <strong>${escapeHtml(item.siteName)}: ${escapeHtml(item.title)}</strong>
+                          <p>${escapeHtml(`${item.count} open ${item.severity} alarm${item.count === 1 ? "" : "s"}`)}</p>
+                          <ol class="guide-list">
+                            ${(item.remediation || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+                          </ol>
+                        </article>
+                      `)
+                      .join("")
+                  : `<div class="empty-callout">No open alarm details were returned in the current snapshot.</div>`
+              }
+            </div>
+          </section>
+        `
+        : ""
+    }
     <section class="detail-section top-space">
       <p class="eyebrow">Recent History</p>
       <h4>Snapshot Table</h4>
