@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mist Ops Console</title>
-    <link rel="stylesheet" href="/styles.css?v=20260424g" />
+    <link rel="stylesheet" href="/styles.css?v=20260424h" />
   </head>
   <body>
     <div class="app-shell">
@@ -14,7 +14,7 @@
           <div class="brand-copy">
             <span class="sidebar-kicker">Operations Console</span>
             <h1>Mist Monitor</h1>
-            <p class="brand-subtitle">Track health, alarms, clients, and change risk from one place.</p>
+            <p class="brand-subtitle">Health, alarms, trends, and drilldowns.</p>
           </div>
         </div>
 
@@ -64,12 +64,9 @@
         <section class="legend-card">
           <div class="card-heading">
             <span class="card-kicker">Workflow</span>
-            <h2>How To Use It</h2>
+            <h2>Use</h2>
           </div>
-          <p class="muted">
-            Load the organization, click a site card, then click an AP or switch row to open deep diagnostics,
-            firmware analysis, power details, and history.
-          </p>
+          <p class="muted">Load org, open site, inspect trend, drill into device.</p>
         </section>
       </aside>
 
@@ -77,11 +74,8 @@
         <header class="console-bar">
           <div class="console-copy-wrap">
             <span class="hero-kicker">Live Operations</span>
-            <h2>Mist estate health, drift, and remediation in one working view</h2>
-            <p class="console-copy">
-              Start at the site cards, move into trends when the score shifts, then drill into AP or switch detail to
-              identify the warning and act on it.
-            </p>
+            <h2>Sites, trends, and device health</h2>
+            <p class="console-copy">Start with site health. Open trends only when something moves.</p>
           </div>
           <div class="console-side">
             <div class="hero-badge">
@@ -89,30 +83,12 @@
               <span id="generated-at">Waiting for data</span>
             </div>
             <div class="status-rail">
-              <span class="status-chip">Sites first</span>
-              <span class="status-chip">Trends second</span>
-              <span class="status-chip">Devices third</span>
+              <span class="status-chip">Sites</span>
+              <span class="status-chip">Trends</span>
+              <span class="status-chip">Devices</span>
             </div>
           </div>
         </header>
-
-        <section class="overview-band">
-          <div class="overview-card">
-            <span class="card-kicker">Operating Flow</span>
-            <h3>Work top down</h3>
-            <p class="muted">Read the health summary, inspect the site list, then use trend and device drilldowns only when the score or alarms justify it.</p>
-          </div>
-          <div class="overview-card">
-            <span class="card-kicker">What To Watch</span>
-            <h3>Warnings before outages</h3>
-            <p class="muted">The score can fall before anything is critical. Warning alarms, risk flags, and client pressure all reduce confidence before hard failure.</p>
-          </div>
-          <div class="overview-card">
-            <span class="card-kicker">Operator Aim</span>
-            <h3>Move from signal to fix</h3>
-            <p class="muted">Every major view should answer three things: what changed, what caused it, and what to do next in Mist.</p>
-          </div>
-        </section>
 
         <section id="message" class="message hidden"></section>
 
@@ -231,6 +207,6 @@
       </main>
     </div>
 
-    <script type="module" src="/app.js?v=20260424g"></script>
+    <script type="module" src="/app.js?v=20260424h"></script>
   </body>
 </html>
