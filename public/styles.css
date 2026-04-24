@@ -1,18 +1,18 @@
 :root {
-  --bg: #08121b;
-  --panel: rgba(9, 18, 29, 0.84);
-  --panel-strong: rgba(7, 16, 25, 0.96);
-  --panel-soft: rgba(255, 255, 255, 0.035);
-  --border: rgba(148, 181, 198, 0.18);
-  --text: #ebf4f8;
-  --muted: #9caebb;
-  --healthy: #3bd38d;
-  --degraded: #f5b94c;
-  --critical: #ff6d6d;
-  --accent: #7ed8c6;
-  --accent-strong: #47b8c7;
-  --ink: #021018;
-  --shadow: 0 22px 64px rgba(0, 0, 0, 0.3);
+  --bg: #f4efe6;
+  --panel: rgba(255, 252, 247, 0.88);
+  --panel-strong: rgba(255, 250, 244, 0.96);
+  --panel-soft: rgba(109, 73, 42, 0.03);
+  --border: rgba(111, 86, 61, 0.16);
+  --text: #23170f;
+  --muted: #736558;
+  --healthy: #23845d;
+  --degraded: #c6811e;
+  --critical: #c94e38;
+  --accent: #b85c38;
+  --accent-strong: #8f3d27;
+  --ink: #fff8f0;
+  --shadow: 0 18px 50px rgba(76, 47, 25, 0.11);
   --font-ui: "Aptos", "Trebuchet MS", "Avenir Next", sans-serif;
   --font-display: "Franklin Gothic Medium", "Aptos", "Trebuchet MS", sans-serif;
 }
@@ -26,9 +26,9 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(126, 216, 198, 0.16), transparent 30%),
-    radial-gradient(circle at 82% 12%, rgba(71, 184, 199, 0.12), transparent 24%),
-    linear-gradient(180deg, #071018 0%, #0b1822 56%, #08121b 100%);
+    radial-gradient(circle at top left, rgba(184, 92, 56, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(201, 78, 56, 0.08), transparent 24%),
+    linear-gradient(180deg, #f7f2ea 0%, #efe6da 58%, #f3ede4 100%);
   color: var(--text);
   font-family: var(--font-ui);
 }
@@ -72,7 +72,7 @@ body {
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(111, 86, 61, 0.12);
 }
 
 .brand-mark {
@@ -81,11 +81,12 @@ body {
   border-radius: 20px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #89d9cd, #58b8c7);
+  background: linear-gradient(135deg, #8f3d27, #d07a49);
   color: var(--ink);
   font-weight: 800;
   font-size: 1.1rem;
   letter-spacing: 0.12em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .brand h1,
@@ -140,6 +141,7 @@ body {
   border-radius: 22px;
   padding: 18px;
   margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .card-heading {
@@ -176,23 +178,25 @@ input,
 select {
   width: 100%;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.75);
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(111, 86, 61, 0.16);
 }
 
 button {
   padding: 12px 18px;
-  background: linear-gradient(135deg, #6ed5c5, #56b8c7);
+  background: linear-gradient(135deg, #a9492f, #cf7c4d);
   color: var(--ink);
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 10px 22px rgba(169, 73, 47, 0.18);
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.6);
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(111, 86, 61, 0.14);
+  box-shadow: none;
 }
 
 .legend-list {
@@ -262,7 +266,7 @@ button {
   gap: 18px;
   align-items: stretch;
   background:
-    linear-gradient(135deg, rgba(126, 216, 198, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(135deg, rgba(184, 92, 56, 0.08), rgba(255, 255, 255, 0.28)),
     var(--panel);
 }
 
@@ -296,13 +300,13 @@ button {
 .hero-badge {
   padding: 16px 18px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.72);
   text-align: left;
   color: var(--text);
   font-weight: 600;
   display: grid;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(111, 86, 61, 0.14);
 }
 
 .status-rail {
@@ -316,8 +320,8 @@ button {
   align-items: center;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(111, 86, 61, 0.12);
   color: var(--text);
   font-size: 0.82rem;
 }
@@ -336,7 +340,7 @@ button {
   padding: 18px;
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 249, 241, 0.94));
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -356,8 +360,9 @@ button {
 }
 
 .message.error {
-  border-color: rgba(255, 109, 109, 0.4);
-  color: #ffd6d6;
+  border-color: rgba(201, 78, 56, 0.38);
+  color: #7b2f22;
+  background: rgba(201, 78, 56, 0.08);
 }
 
 .hidden {
@@ -371,7 +376,7 @@ button {
 }
 
 .stat-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 248, 241, 0.94));
   border: 1px solid var(--border);
   border-radius: 22px;
   padding: 16px 18px 18px;
@@ -384,11 +389,11 @@ button {
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
-  background: linear-gradient(90deg, rgba(126, 216, 198, 0.8), rgba(71, 184, 199, 0.2));
+  background: linear-gradient(90deg, rgba(184, 92, 56, 0.78), rgba(208, 124, 73, 0.28));
 }
 
 .stat-card.accent {
-  background: linear-gradient(135deg, rgba(255, 109, 109, 0.18), rgba(13, 24, 36, 0.96));
+  background: linear-gradient(135deg, rgba(201, 78, 56, 0.12), rgba(255, 246, 238, 0.96));
 }
 
 .stat-label {
@@ -407,7 +412,7 @@ button {
 .panel {
   padding: 22px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 249, 242, 0.94)),
     var(--panel);
 }
 
@@ -419,7 +424,7 @@ button {
 
 .chart-card {
   width: 100%;
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.72);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 18px;
@@ -435,8 +440,8 @@ button {
 .trend-card:hover,
 .trend-card:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(116, 216, 255, 0.42);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(184, 92, 56, 0.34);
+  background: rgba(255, 250, 244, 0.98);
   outline: none;
 }
 
@@ -469,7 +474,7 @@ button {
   align-items: center;
   margin-bottom: 18px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(111, 86, 61, 0.1);
 }
 
 .sites-grid {
@@ -482,7 +487,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 22px;
   padding: 18px;
-  background: rgba(255, 255, 255, 0.025);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 249, 241, 0.94));
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -491,8 +496,8 @@ button {
 .site-card:focus-visible,
 .site-card.active {
   transform: translateY(-2px);
-  border-color: rgba(116, 216, 255, 0.42);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(184, 92, 56, 0.3);
+  background: rgba(255, 252, 247, 1);
   outline: none;
 }
 
@@ -530,25 +535,25 @@ button {
 }
 
 .health-pill.healthy {
-  background: rgba(59, 211, 141, 0.18);
-  color: #9ef0c4;
+  background: rgba(35, 132, 93, 0.14);
+  color: #176a4a;
 }
 
 .health-pill.degraded {
-  background: rgba(245, 185, 76, 0.18);
-  color: #ffd98b;
+  background: rgba(198, 129, 30, 0.16);
+  color: #9a6114;
 }
 
 .health-pill.critical {
-  background: rgba(255, 109, 109, 0.18);
-  color: #ffb0b0;
+  background: rgba(201, 78, 56, 0.14);
+  color: #9d3625;
 }
 
 .score-bar {
   margin: 16px 0;
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(111, 86, 61, 0.09);
   overflow: hidden;
 }
 
@@ -589,8 +594,8 @@ button {
 .breakdown-card {
   padding: 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(111, 86, 61, 0.12);
 }
 
 .breakdown-card strong {
@@ -625,18 +630,18 @@ button {
 .analysis-card {
   padding: 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(111, 86, 61, 0.12);
   color: var(--text);
 }
 
 .analysis-card.subtle {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .analysis-card.config {
-  background: rgba(44, 167, 255, 0.08);
-  border-color: rgba(116, 216, 255, 0.24);
+  background: rgba(184, 92, 56, 0.08);
+  border-color: rgba(184, 92, 56, 0.2);
 }
 
 .analysis-card p {
@@ -655,15 +660,15 @@ button {
 }
 
 .analysis-card.critical {
-  border-color: rgba(255, 109, 109, 0.36);
+  border-color: rgba(201, 78, 56, 0.3);
 }
 
 .analysis-card.watch {
-  border-color: rgba(245, 185, 76, 0.36);
+  border-color: rgba(198, 129, 30, 0.3);
 }
 
 .analysis-card.recommended {
-  border-color: rgba(59, 211, 141, 0.28);
+  border-color: rgba(35, 132, 93, 0.24);
 }
 
 .device-list {
@@ -679,16 +684,16 @@ button {
   align-items: center;
   text-align: left;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(111, 86, 61, 0.12);
   border-radius: 16px;
   color: var(--text);
 }
 
 .device-row:hover,
 .device-row.active {
-  border-color: rgba(116, 216, 255, 0.42);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(184, 92, 56, 0.28);
+  background: rgba(255, 250, 244, 1);
 }
 
 .device-row p {
@@ -706,8 +711,9 @@ button {
 .empty-callout {
   padding: 14px;
   border-radius: 14px;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border: 1px dashed rgba(111, 86, 61, 0.18);
   color: var(--muted);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .top-space {
@@ -720,13 +726,13 @@ button {
   word-break: break-word;
   padding: 16px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d4e4ef;
+  background: rgba(93, 67, 45, 0.06);
+  border: 1px solid rgba(111, 86, 61, 0.12);
+  color: #332117;
 }
 
 .detail-section {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.62);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 18px;
@@ -741,7 +747,7 @@ button {
 .device-table td {
   text-align: left;
   padding: 10px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(111, 86, 61, 0.1);
   font-size: 0.94rem;
 }
 
@@ -758,8 +764,8 @@ button {
 .alarm-item {
   padding: 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(111, 86, 61, 0.12);
 }
 
 .alarm-item p {
@@ -780,9 +786,9 @@ button {
   justify-content: center;
   padding: 7px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(111, 86, 61, 0.12);
+  color: var(--accent-strong);
   font-size: 0.82rem;
 }
 
@@ -790,8 +796,9 @@ button {
   padding: 32px;
   text-align: center;
   color: var(--muted);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border: 1px dashed rgba(111, 86, 61, 0.16);
   border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 @media (max-width: 1120px) {
