@@ -292,6 +292,16 @@ function renderConfigCards(items) {
     .join("");
 }
 
+function renderAuditCards(items) {
+  if (!items.length) {
+    return `<div class="empty-callout">No security or 6 GHz audit findings yet.</div>`;
+  }
+
+  return items
+    .map((item) => `<article class="analysis-card ${escapeHtml(item.severity)}"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.detail)}</p></article>`)
+    .join("");
+}
+
 function renderDeviceRows(devices) {
   if (!devices.length) {
     return `<div class="empty-callout">No devices returned in this category.</div>`;
@@ -356,6 +366,7 @@ function renderSelectedSite() {
   const errorMarkup = errorNotes.length
     ? `<div class="message error">Partial data warning: ${escapeHtml(errorNotes.join(" | "))}</div>`
     : "";
+  const clientBehavior = selected.clientBehavior || {};
 
   elements.siteDetail.innerHTML = `
     ${errorMarkup}
@@ -369,6 +380,29 @@ function renderSelectedSite() {
         <p class="eyebrow">Demand</p>
         <h4>Top Loaded Devices</h4>
         <div class="metric-list">${topDevicesMarkup}</div>
+      </section>
+    </div>
+    <div class="detail-grid secondary">
+      <section class="detail-section">
+        <p class="eyebrow">Client Behavior</p>
+        <h4>Experience Summary</h4>
+        <div class="chip-row">
+          <span class="mini-pill">Score ${formatNumber(clientBehavior.score || 0)}%</span>
+          <span class="mini-pill">Roaming ${escapeHtml(clientBehavior.roaming || "unknown")}</span>
+          <span class="mini-pill">Band Balance ${escapeHtml(clientBehavior.bandBalance || "unknown")}</span>
+        </div>
+        <div class="metric-list">
+          <div class="metric-row"><span>Wireless Clients</span><strong>${formatNumber(clientBehavior.wirelessClients || 0)}</strong></div>
+          <div class="metric-row"><span>Wired Clients</span><strong>${formatNumber(clientBehavior.wiredClients || 0)}</strong></div>
+          <div class="metric-row"><span>High Load APs</span><strong>${formatNumber(clientBehavior.highLoadAps || 0)}</strong></div>
+          <div class="metric-row"><span>Sticky Client Risk APs</span><strong>${formatNumber(clientBehavior.stickyRiskAps || 0)}</strong></div>
+          <div class="metric-row"><span>6 GHz-ready APs</span><strong>${formatNumber(clientBehavior.sixGhzReadyAps || 0)} / ${formatNumber(clientBehavior.totalAps || 0)}</strong></div>
+        </div>
+      </section>
+      <section class="detail-section">
+        <p class="eyebrow">Audit</p>
+        <h4>Security And 6 GHz Readiness</h4>
+        <div class="analysis-grid">${renderAuditCards(selected.audit || [])}</div>
       </section>
     </div>
     <section class="detail-section top-space">

@@ -478,6 +478,109 @@ function summarizeTopDevices(devices) {
     }));
 }
 
+function buildSyntheticClientBehavior(accessPoints = [], switches = []) {
+  const totalWirelessClients = accessPoints.reduce((sum, device) => sum + Number(device.clients || 0), 0);
+  const totalWiredClients = switches.reduce((sum, device) => sum + Number(device.clients || 0), 0);
+  const highLoadAps = accessPoints.filter((device) => Number(device.clients || 0) >= 20).length;
+  const stickyRiskAps = accessPoints.filter((device) => Number(device.txPower24 || 0) >= 18).length;
+  const sixGhzReadyAps = accessPoints.filter((device) => {
+    const model = String(device.model || "").toUpperCase();
+    return model.includes("AP47") || model.includes("AP45") || model.includes("AP63") || model.includes("AP64");
+  }).length;
+  const totalAps = accessPoints.length;
+
+  let score = 100;
+  score -= highLoadAps * 10;
+  score -= stickyRiskAps * 6;
+  score = Math.max(0, Math.min(100, score));
+
+  const roaming = highLoadAps === 0 ? "good" : highLoadAps >= 2 ? "poor" : "watch";
+  const bandBalance = stickyRiskAps === 0 ? "good" : stickyRiskAps >= 2 ? "poor" : "watch";
+
+  return {
+    score,
+    wirelessClients: totalWirelessClients,
+    wiredClients: totalWiredClients,
+    roaming,
+    bandBalance,
+    highLoadAps,
+    stickyRiskAps,
+    sixGhzReadyAps,
+    totalAps
+  };
+}
+
+function buildSecurityAndSixGhzAudit(site, accessPoints = [], switches = []) {
+  const auditItems = [];
+  const configChanges = [];
+  const sixGhzReadyAps = accessPoints.filter((device) => {
+    const model = String(device.model || "").toUpperCase();
+    return model.includes("AP47") || model.includes("AP45") || model.includes("AP63") || model.includes("AP64");
+  });
+
+  if (sixGhzReadyAps.length === 0) {
+    auditItems.push({
+      severity: "watch",
+      title: "No obvious 6 GHz-capable AP models detected",
+      detail: "This site currently appears to be built on AP models without obvious Wi-Fi 6E/7 capability, so 6 GHz enablement may require hardware upgrades first."
+    });
+  } else {
+    auditItems.push({
+      severity: "recommended",
+      title: "6 GHz readiness review available",
+      detail: `${sixGhzReadyAps.length} APs appear 6 GHz-capable by model family. Review WLAN security and radio-band settings so 6 GHz-capable clients can use them.`
+    });
+    configChanges.push("If you have WPA3-capable client devices, create or update a secure WLAN to explicitly enable 6 GHz and validate client onboarding before broad rollout.");
+  }
+
+  const highPowerAps = accessPoints.filter((device) => Number(device.txPower24 || 0) >= 18);
+  if (highPowerAps.length > 0) {
+    auditItems.push({
+      severity: "recommended",
+      title: "2.4 GHz power review",
+      detail: `${highPowerAps.length} APs have relatively high configured 2.4 GHz power, which can contribute to sticky client behavior and co-channel contention.`
+    });
+    configChanges.push("Review 2.4 GHz minimum and maximum power settings for this site and reduce them if roaming and channel contention are concerns.");
+  }
+
+  const overloadedSwitches = switches.filter((device) => {
+    const reserved = Number(device.power?.power_reserved || 0);
+    const max = Number(device.power?.max_power || 0);
+    return max > 0 && reserved / max > 0.8;
+  });
+  if (overloadedSwitches.length > 0) {
+    auditItems.push({
+      severity: "critical",
+      title: "PoE budget close to exhaustion",
+      detail: `${overloadedSwitches.length} switches are reserving most of their PoE budget, which can become a scaling risk for new APs, cameras, or phones.`
+    });
+    configChanges.push("Review switch PoE budgets, endpoint classes, and future expansion plans before adding more powered devices.");
+  }
+
+  const sparsePorts = switches.filter((device) => Number(device.portSummary?.downPorts || 0) >= Math.max(4, Math.round(Number(device.portSummary?.totalPorts || 0) * 0.5)));
+  if (sparsePorts.length > 0) {
+    auditItems.push({
+      severity: "watch",
+      title: "Unused port hardening opportunity",
+      detail: `${sparsePorts.length} switches have a large proportion of down ports. Unused ports should be disabled or placed into a locked-down profile where possible.`
+    });
+    configChanges.push("Apply disabled or restricted port profiles to unused switch access ports, and keep uplink/AP/IoT ports on explicit profiles instead of defaults.");
+  }
+
+  auditItems.push({
+    severity: "recommended",
+    title: "WPA3 and NAC posture review",
+    detail: "For secure WLANs and future 6 GHz use, review WLAN security types for WPA3 readiness and use 802.1X / EAP-TLS for managed users and devices where feasible."
+  });
+  configChanges.push("Review secure SSIDs and move them toward WPA3-Enterprise where client support allows; use OWE Transition for guest 6 GHz if you need open-style guest access with modern encryption.");
+  configChanges.push("For wired security, use 802.1X for supported endpoints and MAB only for exceptions such as IoT or legacy devices.");
+
+  return {
+    items: auditItems,
+    configChanges: [...new Set(configChanges)]
+  };
+}
+
 function computeSiteHealth(site, accessPoints = [], switches = [], alarmCounts = []) {
   const devices = [...accessPoints, ...switches];
   const onlineDevices = devices.filter((device) => {
@@ -719,6 +822,8 @@ async function fetchDashboard(orgId) {
       const allDevices = [...accessPoints, ...switches];
       const recommendations = allDevices.flatMap((device) => device.insights.recommendations).slice(0, 8);
       const configChanges = allDevices.flatMap((device) => device.insights.configChanges || []).slice(0, 8);
+      const clientBehavior = buildSyntheticClientBehavior(accessPoints, switches);
+      const audit = buildSecurityAndSixGhzAudit(site, accessPoints, switches);
 
       return {
         site: computeSiteHealth(site, accessPoints, switches, alarmCounts),
@@ -726,7 +831,9 @@ async function fetchDashboard(orgId) {
         switches,
         topDevices: summarizeTopDevices(allDevices),
         recommendations,
-        configChanges,
+        configChanges: [...new Set([...configChanges, ...audit.configChanges])].slice(0, 12),
+        audit: audit.items,
+        clientBehavior,
         errors: {
           siteDevices: siteDevicesResult.ok ? null : siteDevicesResult.error,
           apStats: apStatsResult.ok ? null : apStatsResult.error,

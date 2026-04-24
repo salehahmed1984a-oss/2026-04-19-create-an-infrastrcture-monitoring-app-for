@@ -436,6 +436,23 @@ button {
   border-color: rgba(116, 216, 255, 0.24);
 }
 
+.analysis-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.analysis-card.critical {
+  border-color: rgba(255, 109, 109, 0.36);
+}
+
+.analysis-card.watch {
+  border-color: rgba(245, 185, 76, 0.36);
+}
+
+.analysis-card.recommended {
+  border-color: rgba(59, 211, 141, 0.28);
+}
+
 .device-list {
   display: grid;
   gap: 10px;
