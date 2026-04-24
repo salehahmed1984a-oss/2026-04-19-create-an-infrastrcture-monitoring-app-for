@@ -49,14 +49,14 @@ This workspace already includes a bundled Node runtime.
 
 ### Easiest option
 
-Double-click [start-monitor.cmd](C:/Users/AAIConsultants/Documents/Codex/2026-04-19-create-an-infrastrcture-monitoring-app-for/start-monitor.cmd)
+Double-click [start-monitor.cmd](C:/Users/xxxxxxx/Documents/Codex/2026-04-19-create-an-infrastrcture-monitoring-app-for/start-monitor.cmd)
 
 ### PowerShell option
 
 From this project directory:
 
 ```powershell
-& "C:\Users\AAIConsultants\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" server.js
+& "C:\Users\xxxxxxxx\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" server.js
 ```
 
 Then open [http://localhost:3000](http://localhost:3000).
@@ -75,7 +75,7 @@ For security, keep live credentials in `.env` and leave `.env.example` as a temp
 
 ## History and Trends
 
-Every successful dashboard refresh writes a lightweight snapshot to [data/history.json](C:/Users/AAIConsultants/Documents/Codex/2026-04-19-create-an-infrastrcture-monitoring-app-for/data/history.json). This powers:
+Every successful dashboard refresh writes a lightweight snapshot to [data/history.json](C:/Users/xxxxxxxxxx/Documents/Codex/2026-04-19-create-an-infrastrcture-monitoring-app-for/data/history.json). This powers:
 
 - organization health trend chart
 - offline device trend chart
