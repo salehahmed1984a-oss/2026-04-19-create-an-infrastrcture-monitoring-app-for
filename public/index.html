@@ -3,21 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HPE Mist Infrastructure Monitor</title>
-    <link rel="stylesheet" href="/styles.css?v=20260424d" />
+    <title>Mist Ops Console</title>
+    <link rel="stylesheet" href="/styles.css?v=20260424e" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">HM</div>
-          <div>
-            <p class="eyebrow">HPE Mist</p>
-            <h1>Infrastructure Monitor</h1>
+          <div class="brand-mark">MO</div>
+          <div class="brand-copy">
+            <span class="sidebar-kicker">Operations Console</span>
+            <h1>Mist Monitor</h1>
+            <p class="brand-subtitle">Track health, alarms, clients, and change risk from one place.</p>
           </div>
         </div>
 
         <form id="config-form" class="config-card">
+          <div class="card-heading">
+            <span class="card-kicker">Workspace</span>
+            <h2>Organization</h2>
+          </div>
           <label for="org-id">Organization ID</label>
           <div class="field-row">
             <input id="org-id" name="orgId" type="text" placeholder="Paste your Mist org UUID" />
@@ -28,7 +33,10 @@
 
         <section class="legend-card">
           <div class="section-head">
-            <h2>Refresh</h2>
+            <div class="card-heading">
+              <span class="card-kicker">Polling</span>
+              <h2>Refresh</h2>
+            </div>
             <span id="refresh-status" class="mini-pill">Manual</span>
           </div>
           <label for="refresh-interval" class="small-label">Auto refresh every</label>
@@ -42,7 +50,10 @@
         </section>
 
         <section class="legend-card">
-          <h2>Status Bands</h2>
+          <div class="card-heading">
+            <span class="card-kicker">Legend</span>
+            <h2>Status Bands</h2>
+          </div>
           <ul class="legend-list">
             <li><span class="swatch healthy"></span> Healthy</li>
             <li><span class="swatch degraded"></span> Degraded</li>
@@ -51,7 +62,10 @@
         </section>
 
         <section class="legend-card">
-          <h2>How To Use It</h2>
+          <div class="card-heading">
+            <span class="card-kicker">Workflow</span>
+            <h2>How To Use It</h2>
+          </div>
           <p class="muted">
             Load the organization, click a site card, then click an AP or switch row to open deep diagnostics,
             firmware analysis, power details, and history.
@@ -61,16 +75,19 @@
 
       <main class="content">
         <header class="hero">
-          <div>
-            <p class="eyebrow">Network Operations</p>
-            <h2>Interactive visibility across your Mist-managed infrastructure</h2>
+          <div class="hero-copy-wrap">
+            <span class="hero-kicker">Network Operations Console</span>
+            <h2>Clearer visibility across sites, devices, and active risk</h2>
             <p class="hero-copy">
-              Explore APs and switches together, spot firmware drift, power changes, client pressure, and configuration
-              risk, then click down into device-level detail.
+              Review health, investigate trends, drill into APs and switches, and move from warnings to remediation
+              without jumping around the interface.
             </p>
           </div>
-          <div class="hero-badge">
-            <span id="generated-at">Waiting for data</span>
+          <div class="hero-side">
+            <div class="hero-badge">
+              <span class="card-kicker">Last Refresh</span>
+              <span id="generated-at">Waiting for data</span>
+            </div>
           </div>
         </header>
 
@@ -191,6 +208,6 @@
       </main>
     </div>
 
-    <script type="module" src="/app.js?v=20260424d"></script>
+    <script type="module" src="/app.js?v=20260424e"></script>
   </body>
 </html>

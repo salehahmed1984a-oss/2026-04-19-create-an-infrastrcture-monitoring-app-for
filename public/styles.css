@@ -1,16 +1,19 @@
 :root {
-  --bg: #09141f;
-  --panel: rgba(10, 21, 32, 0.76);
-  --panel-strong: rgba(8, 18, 28, 0.95);
-  --border: rgba(143, 180, 201, 0.18);
-  --text: #eaf4fb;
-  --muted: #98adbd;
+  --bg: #08121b;
+  --panel: rgba(9, 18, 29, 0.84);
+  --panel-strong: rgba(7, 16, 25, 0.96);
+  --panel-soft: rgba(255, 255, 255, 0.035);
+  --border: rgba(148, 181, 198, 0.18);
+  --text: #ebf4f8;
+  --muted: #9caebb;
   --healthy: #3bd38d;
   --degraded: #f5b94c;
   --critical: #ff6d6d;
-  --accent: #74d8ff;
-  --accent-strong: #2ca7ff;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+  --accent: #7ed8c6;
+  --accent-strong: #47b8c7;
+  --ink: #021018;
+  --shadow: 0 22px 64px rgba(0, 0, 0, 0.3);
+  --font-ui: "Segoe UI", "Avenir Next", Arial, sans-serif;
 }
 
 * {
@@ -22,22 +25,22 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(44, 167, 255, 0.14), transparent 28%),
-    radial-gradient(circle at 80% 10%, rgba(59, 211, 141, 0.1), transparent 20%),
-    linear-gradient(180deg, #08111b 0%, #0d1b29 60%, #09141f 100%);
+    radial-gradient(circle at top left, rgba(126, 216, 198, 0.16), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(71, 184, 199, 0.12), transparent 24%),
+    linear-gradient(180deg, #071018 0%, #0b1822 56%, #08121b 100%);
   color: var(--text);
-  font-family: "Segoe UI", "Avenir Next", Arial, sans-serif;
+  font-family: var(--font-ui);
 }
 
 body {
-  padding: 24px;
+  padding: 20px;
 }
 
 .app-shell {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 24px;
-  max-width: 1600px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 22px;
+  max-width: 1680px;
   margin: 0 auto;
 }
 
@@ -53,36 +56,66 @@ body {
 .sidebar {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 28px;
-  padding: 24px;
+  border-radius: 30px;
+  padding: 22px;
   align-self: start;
   position: sticky;
   top: 24px;
 }
 
 .brand {
-  display: flex;
+  display: grid;
+  grid-template-columns: 62px 1fr;
   gap: 14px;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .brand-mark {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--accent-strong), var(--healthy));
-  color: #02121d;
+  background: linear-gradient(135deg, #89d9cd, #58b8c7);
+  color: var(--ink);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
 }
 
 .brand h1,
 .hero h2,
 .panel h3 {
   margin: 0;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.brand-copy h1 {
+  font-size: 1.9rem;
+  line-height: 1.02;
+}
+
+.sidebar-kicker,
+.hero-kicker,
+.card-kicker {
+  color: var(--accent);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.brand-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .eyebrow {
@@ -100,11 +133,22 @@ body {
 
 .config-card,
 .legend-card {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: 22px;
   padding: 18px;
   margin-bottom: 16px;
+}
+
+.card-heading {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.card-heading h2 {
+  margin: 0;
+  font-size: 1.08rem;
 }
 
 .config-card label {
@@ -130,15 +174,15 @@ input,
 select {
   width: 100%;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 button {
   padding: 12px 18px;
-  background: linear-gradient(135deg, var(--accent-strong), #51d2ff);
-  color: #042033;
+  background: linear-gradient(135deg, #6ed5c5, #56b8c7);
+  color: var(--ink);
   font-weight: 700;
   cursor: pointer;
 }
@@ -197,7 +241,7 @@ button {
 
 .content {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
 .hero,
@@ -209,26 +253,40 @@ button {
 }
 
 .hero {
-  padding: 30px;
+  padding: 26px 28px;
   display: flex;
   justify-content: space-between;
-  gap: 24px;
-  align-items: center;
+  gap: 18px;
+  align-items: flex-end;
+}
+
+.hero-copy-wrap {
+  display: grid;
+  gap: 8px;
 }
 
 .hero-copy {
   max-width: 760px;
   margin-bottom: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.hero-side {
+  display: flex;
+  align-items: stretch;
 }
 
 .hero-badge {
-  min-width: 180px;
-  padding: 14px 16px;
+  min-width: 220px;
+  padding: 16px 18px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.05);
-  text-align: center;
-  color: var(--accent);
+  text-align: left;
+  color: var(--text);
   font-weight: 600;
+  display: grid;
+  gap: 6px;
 }
 
 .message {
@@ -247,18 +305,18 @@ button {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
   border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 18px;
+  border-radius: 22px;
+  padding: 18px 18px 20px;
 }
 
 .stat-card.accent {
-  background: linear-gradient(135deg, rgba(255, 109, 109, 0.18), rgba(8, 18, 28, 0.96));
+  background: linear-gradient(135deg, rgba(255, 109, 109, 0.18), rgba(13, 24, 36, 0.96));
 }
 
 .stat-label {
@@ -286,7 +344,7 @@ button {
 
 .chart-card {
   width: 100%;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 18px;
@@ -347,7 +405,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 22px;
   padding: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -486,7 +544,7 @@ button {
 .analysis-card {
   padding: 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text);
 }
@@ -540,7 +598,7 @@ button {
   align-items: center;
   text-align: left;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   color: var(--text);
@@ -587,7 +645,7 @@ button {
 }
 
 .detail-section {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 18px;
@@ -689,6 +747,11 @@ button {
   .hero {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .hero-side,
+  .hero-badge {
+    width: 100%;
   }
 
   .stats-grid {
