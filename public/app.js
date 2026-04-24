@@ -288,8 +288,148 @@ function renderConfigCards(items) {
   }
 
   return items
-    .map((item) => `<article class="analysis-card config">${escapeHtml(item)}</article>`)
+    .map((item) => {
+      const guide = buildRecommendationGuide(item);
+      return `
+        <article class="analysis-card config">
+          <strong>${escapeHtml(guide.title)}</strong>
+          <p>${escapeHtml(guide.summary)}</p>
+          <ol class="guide-list">
+            ${guide.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+          </ol>
+        </article>
+      `;
+    })
     .join("");
+}
+
+function buildRecommendationGuide(item) {
+  const text = String(item || "");
+  const lower = text.toLowerCase();
+
+  if (lower.includes("6 ghz")) {
+    return {
+      title: "Enable 6 GHz Readiness",
+      summary: text,
+      steps: [
+        "In Mist, open Organization or Site and go to WLANs.",
+        "Select the secure SSID you want clients to use.",
+        "Change security to WPA3-Enterprise, WPA3-Personal, or OWE Transition as appropriate.",
+        "Explicitly enable the 6 GHz band on that WLAN.",
+        "Apply the WLAN to 6 GHz-capable APs first and validate onboarding with a small pilot group."
+      ]
+    };
+  }
+
+  if (lower.includes("wpa3") || lower.includes("owe")) {
+    return {
+      title: "Strengthen WLAN Security",
+      summary: text,
+      steps: [
+        "In Mist, open the WLAN configuration for the SSID.",
+        "Review the current security type and client compatibility requirements.",
+        "Move secure SSIDs toward WPA3-Enterprise where managed devices support it.",
+        "For guest access, use OWE Transition if you want modern encrypted guest access with 6 GHz support.",
+        "Test a sample of clients before rolling the change out site-wide."
+      ]
+    };
+  }
+
+  if (lower.includes("2.4 ghz") || lower.includes("transmit power") || lower.includes("radio power")) {
+    return {
+      title: "Tune AP Radio Power",
+      summary: text,
+      steps: [
+        "In Mist, open the Site or AP configuration and review radio settings.",
+        "Check the current 2.4 GHz minimum and maximum transmit power values.",
+        "Reduce 2.4 GHz power gradually instead of making a large jump all at once.",
+        "Validate roaming, retry rate, and sticky-client behavior after the change.",
+        "Keep 5 GHz and 6 GHz as the preferred bands for capable clients."
+      ]
+    };
+  }
+
+  if (lower.includes("client distribution") || lower.includes("ap capacity")) {
+    return {
+      title: "Improve Client Distribution",
+      summary: text,
+      steps: [
+        "Check which APs are carrying the highest client counts in the dashboard.",
+        "Review transmit power and neighboring AP placement for the overloaded area.",
+        "Lower power on sticky-client APs or add another AP if coverage overlap is weak.",
+        "Re-check roaming and throughput behavior after the change.",
+        "Keep a short before/after note so you can compare whether the adjustment helped."
+      ]
+    };
+  }
+
+  if (lower.includes("poe")) {
+    return {
+      title: "Review Switch PoE Budget",
+      summary: text,
+      steps: [
+        "Open the switch detail in Mist and review current PoE draw and reserved budget.",
+        "Identify powered endpoints such as APs, phones, or cameras on that switch.",
+        "Check whether all attached devices need full allocated power or could use a different profile.",
+        "Plan additional power headroom before adding more powered devices.",
+        "If needed, redistribute powered devices across switches or upgrade switch power capacity."
+      ]
+    };
+  }
+
+  if (lower.includes("unused") || lower.includes("ports are down") || lower.includes("port profiles")) {
+    return {
+      title: "Harden Unused Switch Ports",
+      summary: text,
+      steps: [
+        "In Mist, open Switch Configuration or the relevant switch template.",
+        "Review port profiles assigned to access, AP, uplink, and unused ports.",
+        "Apply disabled or restricted profiles to ports that are not in use.",
+        "Make sure AP and uplink ports use explicit profiles rather than generic defaults.",
+        "Document which ports are intentionally spare so future changes stay consistent."
+      ]
+    };
+  }
+
+  if (lower.includes("802.1x") || lower.includes("mab") || lower.includes("eap-tls")) {
+    return {
+      title: "Improve Access Control",
+      summary: text,
+      steps: [
+        "List which wired and wireless device groups support 802.1X today.",
+        "Use 802.1X first for managed users and devices, ideally with certificate-based EAP-TLS.",
+        "Reserve MAB for exceptions like IoT or legacy devices that cannot do 802.1X.",
+        "Apply the policy consistently across switch and WLAN access workflows.",
+        "Pilot on one site or device group before broader rollout."
+      ]
+    };
+  }
+
+  if (lower.includes("firmware")) {
+    return {
+      title: "Plan Firmware Alignment",
+      summary: text,
+      steps: [
+        "Review the device or model versions shown in the dashboard.",
+        "Confirm the target firmware version you want across that model family.",
+        "Check maintenance window availability and client impact.",
+        "Schedule the upgrade in Mist for a low-risk period.",
+        "Verify connectivity, alarms, and client performance after the upgrade."
+      ]
+    };
+  }
+
+  return {
+    title: "Recommended Change",
+    summary: text,
+    steps: [
+      "Open the relevant site, AP, switch, or WLAN settings in Mist.",
+      "Review the current configuration related to this recommendation.",
+      "Apply the change to a small pilot area first if the impact is uncertain.",
+      "Monitor clients, alarms, and device health after the change.",
+      "Roll the change out more broadly once the result looks good."
+    ]
+  };
 }
 
 function renderAuditCards(items) {
@@ -299,6 +439,23 @@ function renderAuditCards(items) {
 
   return items
     .map((item) => `<article class="analysis-card ${escapeHtml(item.severity)}"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.detail)}</p></article>`)
+    .join("");
+}
+
+function renderAdvisoryCards(items) {
+  if (!items.length) {
+    return `<div class="empty-callout">No firmware advisories are currently mapped for this model and version in the local advisory file.</div>`;
+  }
+
+  return items
+    .map((item) => `
+      <article class="analysis-card critical">
+        <strong>${escapeHtml(item.title || "Security advisory")}</strong>
+        <p>${escapeHtml(item.summary || "Review this advisory before leaving the current firmware in place.")}</p>
+        <p>CVE(s): ${escapeHtml((item.cves || []).join(", ") || "n/a")}</p>
+        <p>Recommended target: ${escapeHtml(item.recommendedTarget || "see firmware baseline")}</p>
+      </article>
+    `)
     .join("");
 }
 
@@ -479,6 +636,7 @@ async function renderSelectedDevice() {
   const firmwareMarkup = `
     <div class="metric-row"><span>Current Version</span><strong>${escapeHtml(device.insights.firmware.currentVersion || "unknown")}</strong></div>
     <div class="metric-row"><span>Newest Seen Same Model</span><strong>${escapeHtml(device.insights.firmware.newestSeenVersion || "n/a")}</strong></div>
+    <div class="metric-row"><span>Recommended Baseline</span><strong>${escapeHtml(device.insights.firmware.recommendedVersion || "n/a")}</strong></div>
     <div class="metric-row"><span>Review Recommended</span><strong>${device.insights.firmware.reviewRecommended ? "Yes" : "No"}</strong></div>
   `;
 
@@ -550,19 +708,24 @@ async function renderSelectedDevice() {
     </div>
     <div class="detail-grid secondary">
       <section class="detail-section">
+        <p class="eyebrow">Security</p>
+        <h4>Firmware Advisories</h4>
+        <div class="analysis-grid">${renderAdvisoryCards(device.insights.advisories || [])}</div>
+      </section>
+      <section class="detail-section">
         <p class="eyebrow">History</p>
         <h4>Recent Device Trend</h4>
         ${renderHistorySummaryChart(history)}
       </section>
-      <section class="detail-section">
-        <p class="eyebrow">Diagnostics</p>
-        <h4>Raw Device Payload</h4>
-        <details>
-          <summary>Open raw JSON</summary>
-          <pre class="raw-json">${escapeHtml(JSON.stringify(device.raw, null, 2))}</pre>
-        </details>
-      </section>
     </div>
+    <section class="detail-section top-space">
+      <p class="eyebrow">Diagnostics</p>
+      <h4>Raw Device Payload</h4>
+      <details>
+        <summary>Open raw JSON</summary>
+        <pre class="raw-json">${escapeHtml(JSON.stringify(device.raw, null, 2))}</pre>
+      </details>
+    </section>
   `;
 }
 

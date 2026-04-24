@@ -1,0 +1,16 @@
+{
+  "ap": {
+    "AP24": {
+      "recommended": "0.14.28578",
+      "channel": "production",
+      "notes": "Update this from the Mist Firmware Updates page."
+    }
+  },
+  "switch": {
+    "EX4000-12MP": {
+      "recommended": "24.4R1-S2.15",
+      "channel": "production",
+      "notes": "Update this from your approved Juniper switch firmware guidance."
+    }
+  }
+}

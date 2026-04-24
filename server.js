@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "public");
 const dataDir = path.join(__dirname, "data");
 const historyFile = path.join(dataDir, "history.json");
+const firmwareBaselinesFile = path.join(dataDir, "firmware-baselines.json");
+const securityAdvisoriesFile = path.join(dataDir, "security-advisories.json");
 
 async function loadEnvFile() {
   const candidatePaths = [path.join(__dirname, ".env"), path.join(__dirname, ".env.example")];
@@ -376,25 +378,37 @@ function buildModelVersionIndex(orgInventory = []) {
   return index;
 }
 
-function deriveFirmwareAssessment(device, modelVersionIndex) {
+function deriveFirmwareAssessment(device, modelVersionIndex, firmwareBaselines = {}) {
   const key = `${device.type}:${device.model}`;
   const newestSeen = pickNewestVersion(modelVersionIndex.get(key) || []);
   const current = device.version || null;
   const drift = current && newestSeen ? compareLooseVersions(current, newestSeen) < 0 : false;
+  const baselineGroup = firmwareBaselines?.[device.type] || {};
+  const baseline = baselineGroup[device.model] || null;
+  const recommendedVersion = baseline?.recommended || null;
+  const behindRecommended = current && recommendedVersion ? compareLooseVersions(current, recommendedVersion) < 0 : false;
 
   return {
     currentVersion: current,
     newestSeenVersion: newestSeen,
+    recommendedVersion,
     drift,
-    reviewRecommended: Boolean(drift || device.pendingVersion || device.fwVersionsOutOfSync)
+    behindRecommended,
+    reviewRecommended: Boolean(drift || behindRecommended || device.pendingVersion || device.fwVersionsOutOfSync),
+    baselineNotes: baseline?.notes || null
   };
 }
 
-function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = new Map()) {
-  const firmware = deriveFirmwareAssessment(device, modelVersionIndex);
+function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = new Map(), firmwareBaselines = {}, securityAdvisories = {}) {
+  const firmware = deriveFirmwareAssessment(device, modelVersionIndex, firmwareBaselines);
   const recommendations = [];
   const observations = [];
   const configChanges = [];
+  const modelAdvisories = securityAdvisories?.[device.type]?.[device.model] || [];
+  const advisories = modelAdvisories.filter((advisory) => {
+    const affectedVersions = Array.isArray(advisory.affectedVersions) ? advisory.affectedVersions : [];
+    return affectedVersions.length === 0 || affectedVersions.includes(device.version);
+  });
 
   if (device.status && !String(device.status).toLowerCase().includes("connected") && !String(device.status).toLowerCase().includes("online")) {
     recommendations.push(`${device.name} is not connected right now.`);
@@ -402,6 +416,13 @@ function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = 
 
   if (firmware.drift) {
     recommendations.push(`${device.name} is running ${firmware.currentVersion}, behind the newest ${device.model} version seen in the org (${firmware.newestSeenVersion}).`);
+  }
+  if (firmware.behindRecommended && firmware.recommendedVersion) {
+    recommendations.push(`${device.name} is behind the recommended ${device.model} baseline (${firmware.recommendedVersion}).`);
+    configChanges.push(`Upgrade this ${device.model} to the recommended baseline ${firmware.recommendedVersion} after validating the maintenance window and rollback plan.`);
+  }
+  if (advisories.length > 0 && firmware.recommendedVersion) {
+    recommendations.push(`${device.name} has ${advisories.length} security advisory entries associated with the current firmware. Upgrade toward ${firmware.recommendedVersion}.`);
   }
 
   if (device.type === "ap") {
@@ -459,7 +480,7 @@ function buildDeviceInsights(device, previousDevice = null, modelVersionIndex = 
     }
   }
 
-  return { firmware, observations, recommendations, configChanges };
+  return { firmware, observations, recommendations, configChanges, advisories };
 }
 
 function summarizeTopDevices(devices) {
@@ -478,15 +499,45 @@ function summarizeTopDevices(devices) {
     }));
 }
 
+const AP_MODEL_CAPABILITIES = {
+  AP24: { generation: "Wi-Fi 6E", sixGhz: true },
+  AP34: { generation: "Wi-Fi 6E", sixGhz: true },
+  AP45: { generation: "Wi-Fi 6E", sixGhz: true },
+  AP45E: { generation: "Wi-Fi 6E", sixGhz: true },
+  AP64: { generation: "Wi-Fi 6E", sixGhz: true },
+  AP36: { generation: "Wi-Fi 7", sixGhz: true },
+  AP37: { generation: "Wi-Fi 7", sixGhz: true },
+  AP47: { generation: "Wi-Fi 7", sixGhz: true }
+};
+
+function getApCapability(device) {
+  const model = String(device.model || "").toUpperCase();
+  return AP_MODEL_CAPABILITIES[model] || { generation: "Unknown", sixGhz: false };
+}
+
+function buildHardwareInventorySummary(accessPoints = [], switches = []) {
+  const apModels = new Map();
+  const switchModels = new Map();
+
+  for (const device of accessPoints) {
+    apModels.set(device.model, (apModels.get(device.model) || 0) + 1);
+  }
+  for (const device of switches) {
+    switchModels.set(device.model, (switchModels.get(device.model) || 0) + 1);
+  }
+
+  return {
+    apModels: [...apModels.entries()].map(([model, count]) => ({ model, count })),
+    switchModels: [...switchModels.entries()].map(([model, count]) => ({ model, count }))
+  };
+}
+
 function buildSyntheticClientBehavior(accessPoints = [], switches = []) {
   const totalWirelessClients = accessPoints.reduce((sum, device) => sum + Number(device.clients || 0), 0);
   const totalWiredClients = switches.reduce((sum, device) => sum + Number(device.clients || 0), 0);
   const highLoadAps = accessPoints.filter((device) => Number(device.clients || 0) >= 20).length;
   const stickyRiskAps = accessPoints.filter((device) => Number(device.txPower24 || 0) >= 18).length;
-  const sixGhzReadyAps = accessPoints.filter((device) => {
-    const model = String(device.model || "").toUpperCase();
-    return model.includes("AP47") || model.includes("AP45") || model.includes("AP63") || model.includes("AP64");
-  }).length;
+  const sixGhzReadyAps = accessPoints.filter((device) => getApCapability(device).sixGhz).length;
   const totalAps = accessPoints.length;
 
   let score = 100;
@@ -513,10 +564,8 @@ function buildSyntheticClientBehavior(accessPoints = [], switches = []) {
 function buildSecurityAndSixGhzAudit(site, accessPoints = [], switches = []) {
   const auditItems = [];
   const configChanges = [];
-  const sixGhzReadyAps = accessPoints.filter((device) => {
-    const model = String(device.model || "").toUpperCase();
-    return model.includes("AP47") || model.includes("AP45") || model.includes("AP63") || model.includes("AP64");
-  });
+  const sixGhzReadyAps = accessPoints.filter((device) => getApCapability(device).sixGhz);
+  const hardwareInventory = buildHardwareInventorySummary(accessPoints, switches);
 
   if (sixGhzReadyAps.length === 0) {
     auditItems.push({
@@ -531,6 +580,24 @@ function buildSecurityAndSixGhzAudit(site, accessPoints = [], switches = []) {
       detail: `${sixGhzReadyAps.length} APs appear 6 GHz-capable by model family. Review WLAN security and radio-band settings so 6 GHz-capable clients can use them.`
     });
     configChanges.push("If you have WPA3-capable client devices, create or update a secure WLAN to explicitly enable 6 GHz and validate client onboarding before broad rollout.");
+  }
+
+  if (hardwareInventory.apModels.length > 0) {
+    const modelText = hardwareInventory.apModels.map((item) => `${item.model} x${item.count}`).join(", ");
+    auditItems.push({
+      severity: "recommended",
+      title: "AP hardware inventory confirmed",
+      detail: `Detected AP models on this site: ${modelText}. 6 GHz readiness is based on these specific hardware families rather than a generic assumption.`
+    });
+  }
+
+  if (hardwareInventory.switchModels.length > 0) {
+    const modelText = hardwareInventory.switchModels.map((item) => `${item.model} x${item.count}`).join(", ");
+    auditItems.push({
+      severity: "recommended",
+      title: "Switch hardware inventory confirmed",
+      detail: `Detected switch models on this site: ${modelText}. Security and optimization checks are being grounded in the actual hardware present at the site.`
+    });
   }
 
   const highPowerAps = accessPoints.filter((device) => Number(device.txPower24 || 0) >= 18);
@@ -652,6 +719,15 @@ async function readHistoryFile() {
   }
 }
 
+async function readJsonFile(filePath, fallback) {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
 async function appendHistorySnapshot(snapshot) {
   await mkdir(dataDir, { recursive: true });
   const history = await readHistoryFile();
@@ -750,10 +826,12 @@ function flattenHistoryDevices(history) {
 }
 
 async function fetchDashboard(orgId) {
-  const [sitesResult, orgInventoryResult, history] = await Promise.all([
+  const [sitesResult, orgInventoryResult, history, firmwareBaselines, securityAdvisories] = await Promise.all([
     mistRequest(`/api/v1/orgs/${orgId}/sites`),
     mistRequest(`/api/v1/orgs/${orgId}/inventory`),
-    readHistoryFile()
+    readHistoryFile(),
+    readJsonFile(firmwareBaselinesFile, { ap: {}, switch: {} }),
+    readJsonFile(securityAdvisoriesFile, { ap: {}, switch: {} })
   ]);
 
   if (!sitesResult.ok) {
@@ -805,7 +883,7 @@ async function fetchDashboard(orgId) {
         const previous = previousDeviceHistory.get(merged.id);
         return {
           ...merged,
-          insights: buildDeviceInsights(merged, previous, modelVersionIndex)
+          insights: buildDeviceInsights(merged, previous, modelVersionIndex, firmwareBaselines, securityAdvisories)
         };
       });
 
@@ -814,7 +892,7 @@ async function fetchDashboard(orgId) {
         const previous = previousDeviceHistory.get(merged.id);
         return {
           ...merged,
-          insights: buildDeviceInsights(merged, previous, modelVersionIndex)
+          insights: buildDeviceInsights(merged, previous, modelVersionIndex, firmwareBaselines, securityAdvisories)
         };
       });
 
